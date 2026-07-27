@@ -2,3 +2,19 @@
 !.gitignore
 .vs
 out
+
+# ignore Visual Studio 2008
+bin/
+obj/
+*.ncb
+*.suo
+*.user
+*.pdb
+data/
+*.7z
+*-installer.exe
+
+# keep DeployKit
+!**/DeployKit/
+!**/DeployKit/**/
+!**/DeployKit/**
