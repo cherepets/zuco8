@@ -22,7 +22,7 @@ if exist data rmdir /s /q data
 mkdir data\Content
 copy /y "%LAUNCHER_BIN%\exploiter.exe" data\exploiter.exe >nul
 if errorlevel 1 exit /b 1
-copy /y "%NATIVE_BIN%\threedee.exe" data\Content\threedee.exe >nul
+copy /y "%NATIVE_BIN%\zuco8.exe" data\Content\zuco8.exe >nul
 if errorlevel 1 exit /b 1
 copy /y "%NATIVE_BIN%\fragment.nvbf" data\Content\fragment.nvbf >nul
 if errorlevel 1 exit /b 1
@@ -48,7 +48,7 @@ exit /b %ERRORLEVEL%
 
 :has_required_build
 if not exist "%LAUNCHER_BIN%\exploiter.exe" exit /b 1
-if not exist "%NATIVE_BIN%\threedee.exe" exit /b 1
+if not exist "%NATIVE_BIN%\zuco8.exe" exit /b 1
 if not exist "%NATIVE_BIN%\fragment.nvbf" exit /b 1
 if not exist "%NATIVE_BIN%\vertex.nvbv" exit /b 1
 exit /b 0
