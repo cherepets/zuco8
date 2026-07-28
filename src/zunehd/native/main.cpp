@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
 	ZDKSystem_ShowSplashScreen(false);
 	ZDKGL_Initialize();
 	// prepare to render
-	glClearColor(1.0f, 1.0f, 0.0f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	if (!InitGraphicsState())
 		return 1;
 	// loop da shoop
