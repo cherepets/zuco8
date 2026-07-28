@@ -39,7 +39,7 @@ namespace ZuneBoards.DevelopmentFront.NativeAppLauncher.HD
 {
     static class Program
     {
-        const string _payload = @"\gametitle\584E07D1\Content\threedee.exe";
+        const string _payload = @"\gametitle\584E07D1\Content\zuco8.exe";
 
         static void Main(string[] args)
         {

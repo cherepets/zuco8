@@ -1,6 +1,6 @@
 ﻿<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="3.5">
   <PropertyGroup>
-    <ProjectGuid>d1f098e8-ccd5-4ef7-af0a-63dbcbe37105</ProjectGuid>
+    <ProjectGuid>d3532a96-e6db-4f7d-91aa-87abe9912e63</ProjectGuid>
     <ProjectTypeGuids>{96E2B04D-8817-42c6-938A-82C39BA4D311};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">Zune</Platform>
@@ -48,12 +48,12 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="threedee.exe">
-      <Name>threedee</Name>
+    <None Include="zuco8.exe">
+      <Name>zuco8</Name>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="threedee.pdb">
-      <Name>threedee</Name>
+    <None Include="zuco8.pdb">
+      <Name>zuco8</Name>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
