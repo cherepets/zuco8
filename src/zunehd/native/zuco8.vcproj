@@ -54,7 +54,7 @@
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
 				Optimization="0"
-				AdditionalIncludeDirectories=""
+				AdditionalIncludeDirectories="$(ProjectDir);$(ProjectDir)C99"
 				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
@@ -154,7 +154,7 @@
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
 				Optimization="2"
-				AdditionalIncludeDirectories=""
+				AdditionalIncludeDirectories="$(ProjectDir);$(ProjectDir)C99"
 				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -231,6 +231,22 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath=".\SDL3\SDL.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SDL3\SDL_main.h"
+				>
+			</File>
+			<File
+				RelativePath=".\C99\stdbool.h"
+				>
+			</File>
+			<File
+				RelativePath=".\C99\stdint.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -244,11 +260,61 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\callback_runtime.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\fragment.fs"
 				>
 			</File>
 			<File
 				RelativePath=".\main.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\app.c"
+				>
+				<FileConfiguration
+					Name="Debug|OpenZDK (ARMV4I)"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|OpenZDK (ARMV4I)"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\main.c"
+				>
+				<FileConfiguration
+					Name="Debug|OpenZDK (ARMV4I)"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+						ObjectFile="$(IntDir)\open8_main.obj"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|OpenZDK (ARMV4I)"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						CompileAs="2"
+						ObjectFile="$(IntDir)\open8_main.obj"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\sdl_compat.cpp"
 				>
 			</File>
 			<File
