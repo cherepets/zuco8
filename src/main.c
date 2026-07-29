@@ -47,7 +47,18 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
 // This function runs once per frame, and is the heart of the program.
 SDL_AppResult SDL_AppIterate(void* appstate)
 {
-    iterate_core(renderer);
+    /* 
+    TEMP: Do actually return, otherwise we keep running.
+    Not sure it was intended by open8 or not. 
+    */
+    if (!iterate_core(renderer))
+    {
+        return SDL_APP_SUCCESS;
+    }
+    // iterate_core(renderer)
+    /* 
+    TEMP: Revert this later if needed.
+    */
     return SDL_APP_CONTINUE;
 }
 
