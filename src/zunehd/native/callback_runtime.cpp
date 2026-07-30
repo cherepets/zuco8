@@ -1,11 +1,19 @@
 #include "renderer_gles2.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <windows.h>
 #include <zdkinput.h>
 #include <zdkgl.h>
 #include <zdksystem.h>
+
+extern "C"
+{
+#include "../../z8lua/lua.h"
+#include "../../z8lua/lauxlib.h"
+#include "../../z8lua/lualib.h"
+}
 
 #include "../../core.h"
 
@@ -36,6 +44,13 @@ typedef struct
     int trace_count;
 } TouchDiagnostic;
 
+typedef struct
+{
+    unsigned long bytes;
+    unsigned long blocks;
+    unsigned long peak_bytes;
+} LuaMemoryTracker;
+
 static SDL_Texture* s_canvas;
 static bool s_graphics_initialized;
 static bool s_input_initialized;
@@ -48,7 +63,6 @@ static unsigned int s_up_events;
 static int s_input_count;
 static int s_margin_touches;
 static unsigned int s_active_buttons;
-static bool s_exit_region_active;
 static TouchDiagnostic s_touches[MAX_TOUCHES];
 static char s_asset_base_path[48];
 static char s_asset_first_cart[32];
@@ -58,6 +72,22 @@ static long s_dpad_size;
 static const char* s_asset_error;
 static bool s_assets_ready;
 static bool s_working_directory_ready;
+static int s_lua_embedded_status;
+static int s_lua_file_status;
+static int s_lua_syntax_status;
+static int s_lua_runtime_status;
+static int s_lua_embedded_result;
+static int s_lua_file_result;
+static unsigned int s_lua_cycles;
+static unsigned long s_lua_retained_bytes;
+static unsigned long s_lua_retained_blocks;
+static unsigned long s_lua_peak_bytes;
+static bool s_lua_cycles_clean;
+static bool s_lua_ready;
+static char s_lua_embedded_error[26];
+static char s_lua_file_error[26];
+static char s_lua_syntax_error[26];
+static char s_lua_runtime_error[26];
 
 static void SuppressReboot(void)
 {
@@ -214,6 +244,227 @@ static void ProbePackagedAssets(void)
     s_assets_ready = s_asset_error == 0;
 }
 
+static void CopyLuaError(char* destination, int capacity, const char* source)
+{
+    int index;
+
+    if (!destination || capacity <= 0)
+    {
+        return;
+    }
+    for (index = 0; source && source[index] && index < capacity - 1; ++index)
+    {
+        char character = source[index];
+
+        if (character >= 'a' && character <= 'z')
+        {
+            character = (char)(character - 'a' + 'A');
+        }
+        if (!((character >= 'A' && character <= 'Z') ||
+            (character >= '0' && character <= '9') || character == ' ' ||
+            character == ':' || character == '-'))
+        {
+            character = ' ';
+        }
+        destination[index] = character;
+    }
+    destination[index] = '\0';
+}
+
+static void* LuaAllocate(void* userdata, void* pointer, size_t old_size,
+    size_t new_size)
+{
+    LuaMemoryTracker* tracker = (LuaMemoryTracker*)userdata;
+    void* result;
+
+    if (new_size == 0)
+    {
+        if (pointer)
+        {
+            tracker->bytes = tracker->bytes >= old_size ?
+                tracker->bytes - (unsigned long)old_size : 0;
+            if (tracker->blocks)
+            {
+                --tracker->blocks;
+            }
+        }
+        free(pointer);
+        return 0;
+    }
+    result = realloc(pointer, new_size);
+    if (!result)
+    {
+        return 0;
+    }
+    if (!pointer)
+    {
+        ++tracker->blocks;
+    }
+    if (new_size >= old_size)
+    {
+        tracker->bytes += (unsigned long)(new_size - old_size);
+    }
+    else
+    {
+        tracker->bytes -= (unsigned long)(old_size - new_size);
+    }
+    if (tracker->bytes > tracker->peak_bytes)
+    {
+        tracker->peak_bytes = tracker->bytes;
+    }
+    return result;
+}
+
+static int RunLua(const char* source, const char* name, bool file_source,
+    int* result_value, char* error, int error_capacity,
+    LuaMemoryTracker* tracker)
+{
+    lua_State* state;
+    int status;
+    int is_number;
+    lua_Number numeric_result;
+
+    *result_value = -1;
+    error[0] = '\0';
+    state = lua_newstate(LuaAllocate, tracker);
+    if (!state)
+    {
+        CopyLuaError(error, error_capacity, "STATE ALLOCATION FAILED");
+        return LUA_ERRMEM;
+    }
+    luaL_openlibs(state);
+    status = file_source ? luaL_loadfile(state, source) :
+        luaL_loadbuffer(state, source, strlen(source), name);
+    if (status == LUA_OK)
+    {
+        status = lua_pcall(state, 0, 1, 0);
+    }
+    if (status == LUA_OK)
+    {
+        numeric_result = lua_tonumberx(state, -1, &is_number);
+        *result_value = fix32_to_int((fix32_t)numeric_result);
+        if (!is_number)
+        {
+            status = LUA_ERRRUN;
+            CopyLuaError(error, error_capacity, "RESULT IS NOT A NUMBER");
+        }
+    }
+    else
+    {
+        CopyLuaError(error, error_capacity, lua_tostring(state, -1));
+    }
+    lua_close(state);
+    return status;
+}
+
+static void RecordLuaMemory(const LuaMemoryTracker* tracker)
+{
+    if (tracker->peak_bytes > s_lua_peak_bytes)
+    {
+        s_lua_peak_bytes = tracker->peak_bytes;
+    }
+    if (tracker->bytes > s_lua_retained_bytes)
+    {
+        s_lua_retained_bytes = tracker->bytes;
+    }
+    if (tracker->blocks > s_lua_retained_blocks)
+    {
+        s_lua_retained_blocks = tracker->blocks;
+    }
+}
+
+static void RunLuaDiagnostic(void)
+{
+    LuaMemoryTracker tracker;
+    char* base_path;
+    char* script_path;
+    char cycle_error[26];
+    int result;
+    int cycle;
+
+    s_lua_embedded_status = LUA_ERRRUN;
+    s_lua_file_status = LUA_ERRFILE;
+    s_lua_syntax_status = LUA_ERRRUN;
+    s_lua_runtime_status = LUA_ERRRUN;
+    s_lua_embedded_result = -1;
+    s_lua_file_result = -1;
+    s_lua_cycles = 0;
+    s_lua_retained_bytes = 0;
+    s_lua_retained_blocks = 0;
+    s_lua_peak_bytes = 0;
+    s_lua_cycles_clean = true;
+    s_lua_ready = false;
+    s_lua_embedded_error[0] = '\0';
+    s_lua_file_error[0] = '\0';
+    s_lua_syntax_error[0] = '\0';
+    s_lua_runtime_error[0] = '\0';
+
+    memset(&tracker, 0, sizeof(tracker));
+    s_lua_embedded_status = RunLua("return 6 * 7", "EMBEDDED", false,
+        &s_lua_embedded_result, s_lua_embedded_error,
+        sizeof(s_lua_embedded_error), &tracker);
+    RecordLuaMemory(&tracker);
+
+    base_path = SDL_GetBasePath();
+    script_path = 0;
+    if (!base_path || SDL_asprintf(&script_path, "%slua_diag.lua", base_path) < 0 ||
+        !script_path)
+    {
+        CopyLuaError(s_lua_file_error, sizeof(s_lua_file_error), "SCRIPT PATH");
+    }
+    else
+    {
+        memset(&tracker, 0, sizeof(tracker));
+        s_lua_file_status = RunLua(script_path, "LUA FILE", true,
+            &s_lua_file_result, s_lua_file_error,
+            sizeof(s_lua_file_error), &tracker);
+        RecordLuaMemory(&tracker);
+    }
+
+    memset(&tracker, 0, sizeof(tracker));
+    s_lua_syntax_status = RunLua("return +", "SYNTAX", false, &result,
+        s_lua_syntax_error, sizeof(s_lua_syntax_error), &tracker);
+    RecordLuaMemory(&tracker);
+
+    memset(&tracker, 0, sizeof(tracker));
+    s_lua_runtime_status = RunLua("error('RUNTIME CHECK')", "RUNTIME", false,
+        &result, s_lua_runtime_error, sizeof(s_lua_runtime_error), &tracker);
+    RecordLuaMemory(&tracker);
+
+    for (cycle = 0; cycle < 4; ++cycle)
+    {
+        memset(&tracker, 0, sizeof(tracker));
+        if (RunLua("return 6 * 7", "CYCLE", false, &result,
+            cycle_error, sizeof(cycle_error), &tracker) != LUA_OK ||
+            result != 42 || tracker.bytes || tracker.blocks)
+        {
+            s_lua_cycles_clean = false;
+        }
+        RecordLuaMemory(&tracker);
+        ++s_lua_cycles;
+        if (script_path)
+        {
+            memset(&tracker, 0, sizeof(tracker));
+            if (RunLua(script_path, "CYCLE FILE", true, &result,
+                cycle_error, sizeof(cycle_error), &tracker) != LUA_OK ||
+                result != 42 || tracker.bytes || tracker.blocks)
+            {
+                s_lua_cycles_clean = false;
+            }
+            RecordLuaMemory(&tracker);
+            ++s_lua_cycles;
+        }
+    }
+
+    SDL_free(script_path);
+    SDL_free(base_path);
+    s_lua_ready = s_lua_embedded_status == LUA_OK &&
+        s_lua_embedded_result == 42 && s_lua_file_status == LUA_OK &&
+        s_lua_file_result == 42 && s_lua_syntax_status == LUA_ERRSYNTAX &&
+        s_lua_runtime_status == LUA_ERRRUN && s_lua_cycles_clean &&
+        !s_lua_retained_bytes && !s_lua_retained_blocks;
+}
+
 static float NormalizeCoordinate(float value, int extent)
 {
     if (value > 1.0f)
@@ -290,11 +541,6 @@ static unsigned int ButtonMaskAt(float x, float y)
     return mask;
 }
 
-static bool IsExitRegion(float x, float y)
-{
-    return x >= 145.0f && x < 160.0f && y >= 0.0f && y < 23.0f;
-}
-
 static void PollTouches(SDL_Renderer* renderer)
 {
     ZDK_INPUT_STATE input;
@@ -305,7 +551,6 @@ static void PollTouches(SDL_Renderer* renderer)
     SDL_ZuneTouchBeginFrame();
     s_margin_touches = 0;
     s_active_buttons = 0;
-    s_exit_region_active = false;
     for (index = 0; index < MAX_TOUCHES; ++index)
     {
         s_touches[index].seen = false;
@@ -360,10 +605,6 @@ static void PollTouches(SDL_Renderer* renderer)
         }
         AddTrace(touch, logical_x, logical_y);
         s_active_buttons |= ButtonMaskAt(logical_x, logical_y);
-        if (IsExitRegion(logical_x, logical_y))
-        {
-            s_exit_region_active = true;
-        }
         SDL_ZuneTouchUpdate(location->Id, screen_x, screen_y,
             location->Pressure);
     }
@@ -531,29 +772,36 @@ static void DrawDiagnostic(SDL_Renderer* renderer)
                 0xff);
         }
     }
-    DrawText(pixels, 3, 3, "ASSET DIAG", 1, 0x60, 0xf0, 0xff);
-    DrawText(pixels, 124, 3, s_assets_ready ? "PASS" : "FAIL", 1,
-        s_assets_ready ? 0x60 : 0xff, s_assets_ready ? 0xff : 0x80, 0x80);
-    _snprintf(line, sizeof(line) - 1, "BASE");
+    DrawText(pixels, 3, 3, "LUA DIAG", 1, 0x60, 0xf0, 0xff);
+    DrawText(pixels, 124, 3, s_lua_ready ? "PASS" : "FAIL", 1,
+        s_lua_ready ? 0x60 : 0xff, s_lua_ready ? 0xff : 0x80, 0x80);
+    _snprintf(line, sizeof(line) - 1, "EMB %d %s", s_lua_embedded_result,
+        s_lua_embedded_status == LUA_OK ? "OK" : s_lua_embedded_error);
     line[sizeof(line) - 1] = '\0';
     DrawText(pixels, 3, 11, line, 1, 0xd0, 0xd0, 0x80);
-    DrawText(pixels, 3, 19, s_asset_base_path, 1, 0xd0, 0xd0, 0x80);
-    DrawText(pixels, 3, 27, s_working_directory_ready ? "CWD SET" :
-        "CWD NO", 1, 0xa0, 0xd0, 0xff);
-    _snprintf(line, sizeof(line) - 1, "CARTS %u %s", s_asset_cart_count,
-        s_asset_first_cart);
+    _snprintf(line, sizeof(line) - 1, "FILE %d %s", s_lua_file_result,
+        s_lua_file_status == LUA_OK ? "OK" : s_lua_file_error);
     line[sizeof(line) - 1] = '\0';
-    DrawText(pixels, 3, 35, line, 1, 0xff, 0xff, 0xff);
-    _snprintf(line, sizeof(line) - 1, "BTN %d DPD %d", (int)s_buttons_size,
-        (int)s_dpad_size);
+    DrawText(pixels, 3, 19, line, 1, 0xff, 0xff, 0xff);
+    _snprintf(line, sizeof(line) - 1, "SYN %d %s", s_lua_syntax_status,
+        s_lua_syntax_status == LUA_ERRSYNTAX ? s_lua_syntax_error :
+        "NO ERROR");
+    line[sizeof(line) - 1] = '\0';
+    DrawText(pixels, 3, 27, line, 1, 0xa0, 0xd0, 0xff);
+    _snprintf(line, sizeof(line) - 1, "RUN %d %s", s_lua_runtime_status,
+        s_lua_runtime_status == LUA_ERRRUN ? s_lua_runtime_error :
+        "NO ERROR");
+    line[sizeof(line) - 1] = '\0';
+    DrawText(pixels, 3, 35, line, 1, 0xff, 0x80, 0x80);
+    _snprintf(line, sizeof(line) - 1, "LOOP %u MEM %u", s_lua_cycles,
+        (unsigned int)s_lua_retained_bytes);
     line[sizeof(line) - 1] = '\0';
     DrawText(pixels, 3, 43, line, 1, 0xa0, 0xd0, 0xff);
-    if (s_asset_error)
-    {
-        _snprintf(line, sizeof(line) - 1, "ERR %s", s_asset_error);
-        line[sizeof(line) - 1] = '\0';
-        DrawText(pixels, 3, 51, line, 1, 0xff, 0x80, 0x80);
-    }
+    _snprintf(line, sizeof(line) - 1, "ALLOC %u PEAK %u",
+        (unsigned int)s_lua_retained_blocks,
+        (unsigned int)s_lua_peak_bytes);
+    line[sizeof(line) - 1] = '\0';
+    DrawText(pixels, 3, 51, line, 1, 0xa0, 0xd0, 0xff);
     for (index = 0; index < MAX_TOUCHES; ++index)
     {
         TouchDiagnostic* touch = &s_touches[index];
@@ -592,8 +840,6 @@ static void DrawDiagnostic(SDL_Renderer* renderer)
     DrawControl(pixels, 29, 248, 14, 22, (s_active_buttons & 8) != 0, "D");
     DrawControl(pixels, 92, 235, 28, 28, (s_active_buttons & 16) != 0, "O");
     DrawControl(pixels, 122, 223, 28, 28, (s_active_buttons & 32) != 0, "X");
-    DrawControl(pixels, 145, 0, 15, 23, s_exit_region_active, "E");
-    DrawText(pixels, 115, 25, "HOME EXIT", 1, 0xff, 0xc0, 0x60);
     SDL_UnlockTexture(s_canvas);
     SDL_RenderTexture(renderer, s_canvas, 0, &destination);
     SDL_RenderPresent(renderer);
@@ -632,14 +878,12 @@ bool init_core(SDL_Renderer* renderer)
         return false;
     }
     ProbePackagedAssets();
+    RunLuaDiagnostic();
     return true;
 }
 
 bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
 {
-    float logical_x;
-    float logical_y;
-
     if (!renderer || !event)
     {
         return true;
@@ -647,14 +891,6 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
     if (event->type == SDL_EVENT_FINGER_DOWN)
     {
         ++s_down_events;
-        if (renderer_gles2_map_touch(renderer,
-            event->tfinger.x * renderer->output_width,
-            event->tfinger.y * renderer->output_height, &logical_x, &logical_y) &&
-            IsExitRegion(logical_x, logical_y))
-        {
-            s_shutdown_requested = true;
-            s_shutdown_started = GetTickCount();
-        }
     }
     else if (event->type == SDL_EVENT_FINGER_MOTION)
     {
