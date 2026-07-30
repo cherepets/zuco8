@@ -247,6 +247,10 @@
 				RelativePath=".\C99\stdint.h"
 				>
 			</File>
+			<File
+				RelativePath=".\renderer_gles2.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -312,6 +316,10 @@
 						ObjectFile="$(IntDir)\open8_main.obj"
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\renderer_gles2.cpp"
+				>
 			</File>
 			<File
 				RelativePath=".\sdl_compat.cpp"
