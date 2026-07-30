@@ -5,6 +5,8 @@ cd /d "%~dp0"
 set "BUILD_CONFIGURATION=Release"
 set "LAUNCHER_BIN=..\launcher\bin\Zune\Release"
 set "NATIVE_BIN=..\native\bin\OpenZDK (ARMV4I)\Release"
+set "CARTS_SOURCE=..\..\..\export\carts"
+set "RESOURCE_SOURCE=..\res"
 call :has_required_build
 if errorlevel 1 (
     set "BUILD_CONFIGURATION=Debug"
@@ -27,6 +29,11 @@ if errorlevel 1 exit /b 1
 copy /y "%NATIVE_BIN%\fragment.nvbf" data\Content\fragment.nvbf >nul
 if errorlevel 1 exit /b 1
 copy /y "%NATIVE_BIN%\vertex.nvbv" data\Content\vertex.nvbv >nul
+if errorlevel 1 exit /b 1
+copy /y "%RESOURCE_SOURCE%\*.png" data\Content >nul
+if errorlevel 1 exit /b 1
+mkdir data\Content\carts
+copy /y "%CARTS_SOURCE%\*.PNG" data\Content\carts >nul
 if errorlevel 1 exit /b 1
 
 set "ARCHIVER=%~dp07zr.exe"

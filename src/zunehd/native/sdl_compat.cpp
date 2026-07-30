@@ -1,6 +1,10 @@
 #include "renderer_gles2.h"
 
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <windows.h>
 
 static SDL_Window s_window;
 static SDL_Renderer s_renderer;
@@ -25,6 +29,117 @@ static SDL_Finger* s_finger_list[MAX_TOUCH_FINGERS];
 static SDL_Event s_touch_events[MAX_TOUCH_EVENTS];
 static int s_event_head;
 static int s_event_count;
+
+static char* WideToUtf8(const wchar_t* value)
+{
+    int size;
+    char* result;
+
+    if (!value)
+    {
+        return 0;
+    }
+    size = WideCharToMultiByte(CP_UTF8, 0, value, -1, 0, 0, 0, 0);
+    if (size <= 0)
+    {
+        return 0;
+    }
+    result = (char*)malloc(size);
+    if (!result)
+    {
+        return 0;
+    }
+    if (WideCharToMultiByte(CP_UTF8, 0, value, -1, result, size, 0, 0) <= 0)
+    {
+        free(result);
+        return 0;
+    }
+    return result;
+}
+
+static wchar_t* Utf8ToWide(const char* value)
+{
+    int size;
+    wchar_t* result;
+
+    if (!value)
+    {
+        return 0;
+    }
+    size = MultiByteToWideChar(CP_UTF8, 0, value, -1, 0, 0);
+    if (size <= 0)
+    {
+        return 0;
+    }
+    result = (wchar_t*)malloc(size * sizeof(wchar_t));
+    if (!result)
+    {
+        return 0;
+    }
+    if (MultiByteToWideChar(CP_UTF8, 0, value, -1, result, size) <= 0)
+    {
+        free(result);
+        return 0;
+    }
+    return result;
+}
+
+static bool GetModuleDirectory(wchar_t* directory, int capacity)
+{
+    DWORD length;
+    int index;
+
+    if (!directory || capacity <= 1)
+    {
+        s_error = "invalid module path buffer";
+        return false;
+    }
+    length = GetModuleFileNameW(0, directory, capacity);
+    if (length == 0 || length >= (DWORD)capacity)
+    {
+        s_error = "could not get module path";
+        return false;
+    }
+    directory[length] = 0;
+    for (index = (int)length - 1; index >= 0; --index)
+    {
+        if (directory[index] == L'\\' || directory[index] == L'/')
+        {
+            directory[index + 1] = 0;
+            return true;
+        }
+    }
+    s_error = "module path has no directory";
+    return false;
+}
+
+bool SDL_ZuneSetWorkingDirectoryFromModule(void)
+{
+    wchar_t directory[MAX_PATH];
+    HMODULE coredll;
+    typedef BOOL (WINAPI *SetCurrentDirectoryWProc)(LPCWSTR directory);
+    SetCurrentDirectoryWProc set_current_directory;
+
+    if (!GetModuleDirectory(directory, MAX_PATH))
+    {
+        return false;
+    }
+
+    coredll = GetModuleHandle(L"coredll.dll");
+    set_current_directory = coredll ? (SetCurrentDirectoryWProc)GetProcAddress(
+        coredll, L"SetCurrentDirectoryW") : 0;
+    if (!set_current_directory)
+    {
+        s_error = "SetCurrentDirectoryW is unavailable";
+        return false;
+    }
+    if (!set_current_directory(directory))
+    {
+        s_error = "could not set module directory";
+        return false;
+    }
+    return true;
+}
 
 float SDL_ZuneClampUnit(float value)
 {
@@ -137,6 +252,158 @@ void SDL_Quit(void)
     s_initialized = 0;
     s_renderer.window = 0;
     SDL_ZuneTouchReset();
+}
+
+char* SDL_GetBasePath(void)
+{
+    wchar_t directory[MAX_PATH];
+    char* result;
+
+    if (!GetModuleDirectory(directory, MAX_PATH))
+    {
+        return 0;
+    }
+    result = WideToUtf8(directory);
+    if (!result)
+    {
+        s_error = "could not convert module directory";
+    }
+    return result;
+}
+
+int SDL_asprintf(char** strp, const char* format, ...)
+{
+    int capacity = 128;
+    int written;
+    char* result;
+    va_list arguments;
+
+    if (!strp || !format)
+    {
+        return -1;
+    }
+    *strp = 0;
+    while (capacity <= 32768)
+    {
+        result = (char*)malloc(capacity);
+        if (!result)
+        {
+            s_error = "out of memory";
+            return -1;
+        }
+        va_start(arguments, format);
+        written = _vsnprintf(result, capacity, format, arguments);
+        va_end(arguments);
+        if (written >= 0 && written < capacity)
+        {
+            *strp = result;
+            return written;
+        }
+        free(result);
+        capacity *= 2;
+    }
+    s_error = "formatted path too long";
+    return -1;
+}
+
+void SDL_free(void* memory)
+{
+    free(memory);
+}
+
+bool SDL_EnumerateDirectory(const char* path,
+    SDL_EnumerateDirectoryCallback callback, void* userdata)
+{
+    wchar_t* wide_path;
+    wchar_t pattern[MAX_PATH];
+    WIN32_FIND_DATAW find_data;
+    HANDLE find_handle;
+    char* utf8_directory;
+    bool result = true;
+    bool stopped_early = false;
+    int length;
+
+    if (!path || !callback)
+    {
+        s_error = "invalid directory enumeration";
+        return false;
+    }
+    wide_path = Utf8ToWide(path);
+    if (!wide_path)
+    {
+        s_error = "could not convert directory path";
+        return false;
+    }
+    length = (int)wcslen(wide_path);
+    if (length <= 0 || length + 2 >= MAX_PATH)
+    {
+        free(wide_path);
+        s_error = "directory path too long";
+        return false;
+    }
+    memcpy(pattern, wide_path, (length + 1) * sizeof(wchar_t));
+    free(wide_path);
+    if (pattern[length - 1] != L'\\' && pattern[length - 1] != L'/')
+    {
+        pattern[length++] = L'\\';
+    }
+    pattern[length] = 0;
+    utf8_directory = WideToUtf8(pattern);
+    if (!utf8_directory)
+    {
+        s_error = "could not convert directory name";
+        return false;
+    }
+    pattern[length++] = L'*';
+    pattern[length] = 0;
+    find_handle = FindFirstFileW(pattern, &find_data);
+    if (find_handle == INVALID_HANDLE_VALUE)
+    {
+        free(utf8_directory);
+        s_error = "could not open directory";
+        return false;
+    }
+    do
+    {
+        char* utf8_name;
+        SDL_EnumerationResult callback_result;
+
+        if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
+            (find_data.cFileName[0] == L'.' &&
+            (find_data.cFileName[1] == 0 || (find_data.cFileName[1] == L'.' &&
+            find_data.cFileName[2] == 0))))
+        {
+            continue;
+        }
+        utf8_name = WideToUtf8(find_data.cFileName);
+        if (!utf8_name)
+        {
+            s_error = "could not convert file name";
+            result = false;
+            break;
+        }
+        callback_result = callback(userdata, utf8_directory, utf8_name);
+        free(utf8_name);
+        if (callback_result == SDL_ENUM_FAILURE)
+        {
+            s_error = "directory callback failed";
+            result = false;
+            break;
+        }
+        if (callback_result == SDL_ENUM_SUCCESS)
+        {
+            stopped_early = true;
+            break;
+        }
+    } while (FindNextFileW(find_handle, &find_data));
+    if (result && !stopped_early && GetLastError() != ERROR_NO_MORE_FILES)
+    {
+        s_error = "could not continue directory enumeration";
+        result = false;
+    }
+    FindClose(find_handle);
+    free(utf8_directory);
+    return result;
 }
 
 bool SDL_PollEvent(SDL_Event* event)
