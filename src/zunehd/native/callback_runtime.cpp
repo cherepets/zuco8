@@ -1,10 +1,8 @@
-#include "SDL3/SDL.h"
+#include "renderer_gles2.h"
 
 #include <GLES2/gl2.h>
-#include <GLES2/gl2ext.h>
-#include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
 #include <windows.h>
 #include <zdkinput.h>
 #include <zdkgl.h>
@@ -12,28 +10,15 @@
 
 #include "../../core.h"
 
-#define FRAGMENT_SHADER_LOCATION "\\gametitle\\584E07D1\\Content\\fragment.nvbf"
-#define VERTEX_SHADER_LOCATION   "\\gametitle\\584E07D1\\Content\\vertex.nvbv"
-
-enum
-{
-    VERTEX_FLOATS = 6,
-    MAX_DIAGNOSTIC_VERTICES = 12288
-};
-
-static GLuint s_program;
-static GLint s_rotation_uniform;
-static GLfloat s_vertices[MAX_DIAGNOSTIC_VERTICES * VERTEX_FLOATS];
-static int s_vertex_count;
+static SDL_Texture* s_checker;
+static SDL_Texture* s_sprite;
+static SDL_Texture* s_overlay;
+static SDL_Texture* s_streaming;
+static SDL_Texture* s_text;
 static bool s_graphics_initialized;
 static bool s_shutdown_requested;
 static DWORD s_shutdown_started;
 static DWORD s_start_tick;
-
-static void LogStage(const char* stage)
-{
-    SDL_Log("zuco8: %s", stage);
-}
 
 static void SuppressReboot(void)
 {
@@ -54,108 +39,70 @@ static void SuppressReboot(void)
     }
 }
 
-static bool LoadBinaryShader(GLuint shader, const char* path)
+static SDL_Texture* CreateTexture(SDL_Renderer* renderer, int width, int height,
+    int access)
 {
-    FILE* file = fopen(path, "rb");
-    long length;
-    char* bytes;
-
-    if (!file)
-    {
-        return false;
-    }
-
-    fseek(file, 0, SEEK_END);
-    length = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    if (length <= 0)
-    {
-        fclose(file);
-        return false;
-    }
-
-    bytes = (char*)malloc((size_t)length);
-    if (!bytes)
-    {
-        fclose(file);
-        return false;
-    }
-
-    if (fread(bytes, 1, (size_t)length, file) != (size_t)length)
-    {
-        free(bytes);
-        fclose(file);
-        return false;
-    }
-
-    glShaderBinary(1, &shader, GL_NVIDIA_PLATFORM_BINARY_NV, bytes, length);
-    free(bytes);
-    fclose(file);
-    return true;
+    return SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, access, width,
+        height);
 }
 
-static bool InitDiagnosticGraphics(void)
+static void FillChecker(SDL_Texture* texture)
 {
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    GLint linked = 0;
+    unsigned char pixels[64 * 64 * 4];
+    int x;
+    int y;
 
-    s_program = glCreateProgram();
-    glAttachShader(s_program, vertex_shader);
-    glAttachShader(s_program, fragment_shader);
-    if (!LoadBinaryShader(vertex_shader, VERTEX_SHADER_LOCATION) ||
-        !LoadBinaryShader(fragment_shader, FRAGMENT_SHADER_LOCATION))
+    for (y = 0; y < 64; ++y)
     {
-        return false;
+        for (x = 0; x < 64; ++x)
+        {
+            unsigned char* pixel = &pixels[(y * 64 + x) * 4];
+            bool light = ((x / 8) + (y / 8)) & 1;
+            pixel[0] = light ? 0xe0 : 0x30;
+            pixel[1] = light ? 0xe0 : 0x60;
+            pixel[2] = light ? 0x40 : 0xb0;
+            pixel[3] = 0xff;
+        }
     }
-
-    glBindAttribLocation(s_program, 0, "pos_attr");
-    glBindAttribLocation(s_program, 1, "col_attr");
-    glLinkProgram(s_program);
-    glGetProgramiv(s_program, GL_LINK_STATUS, &linked);
-    if (!linked)
-    {
-        return false;
-    }
-
-    glUseProgram(s_program);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    s_rotation_uniform = glGetUniformLocation(s_program, "rot");
-    return true;
+    SDL_UpdateTexture(texture, 0, pixels, 64 * 4);
 }
 
-// TEMP: 3x5 bitmap font
+static void FillSprite(SDL_Texture* texture, bool translucent)
+{
+    unsigned char pixels[32 * 32 * 4];
+    int x;
+    int y;
+
+    for (y = 0; y < 32; ++y)
+    {
+        for (x = 0; x < 32; ++x)
+        {
+            unsigned char* pixel = &pixels[(y * 32 + x) * 4];
+            int distance = (x - 16) * (x - 16) + (y - 16) * (y - 16);
+            pixel[0] = distance < 180 ? 0xff : 0x20;
+            pixel[1] = distance < 180 ? 0x50 : 0x20;
+            pixel[2] = distance < 180 ? 0x20 : 0x80;
+            pixel[3] = translucent ? 0x90 : (distance < 180 ? 0xff : 0x00);
+        }
+    }
+    SDL_UpdateTexture(texture, 0, pixels, 32 * 4);
+}
+
 static const char* Glyph(char character)
 {
     switch (character)
     {
     case 'A': return "010101111101101";
     case 'B': return "110101110101110";
-    case 'C': return "011100100100011";
     case 'D': return "110101101101110";
     case 'E': return "111100110100111";
     case 'F': return "111100110100100";
     case 'G': return "011100101101011";
     case 'H': return "101101111101101";
-    case 'I': return "111010010010111";
-    case 'J': return "001001001101010";
-    case 'K': return "101101110101101";
-    case 'L': return "100100100100111";
     case 'M': return "101111111101101";
-    case 'N': return "101111111101101";
-    case 'O': return "010101101101010";
-    case 'P': return "110101110100100";
-    case 'Q': return "010101101111011";
-    case 'R': return "110101110101101";
     case 'S': return "011100010001110";
-    case 'T': return "111010010010010";
-    case 'U': return "101101101101111";
     case 'V': return "101101101101010";
     case 'W': return "101101111111101";
-    case 'X': return "101101010101101";
-    case 'Y': return "101101010010010";
-    case 'Z': return "111001010100111";
     case '0': return "111101101101111";
     case '1': return "010110010010111";
     case '2': return "110001010100111";
@@ -166,132 +113,173 @@ static const char* Glyph(char character)
     case '7': return "111001010010010";
     case '8': return "010101010101010";
     case '9': return "010101011001110";
-    case ':': return "000010000010000";
     default: return 0;
     }
 }
 
-static void AddVertex(float x, float y, float r, float g, float b)
+static void FillDiagnosticText(SDL_Texture* texture, SDL_Renderer* renderer)
 {
-    GLfloat* vertex;
+    char text[20];
+    unsigned char pixels[112 * 10 * 4];
+    int character;
+    int row;
+    int column;
 
-    if (s_vertex_count >= MAX_DIAGNOSTIC_VERTICES)
+    _snprintf(text, sizeof(text) - 1, "A0 M%d G%d E%d",
+        renderer->diagnostic_blend_mode, renderer->diagnostic_blend_enabled,
+        renderer->diagnostic_gl_error == GL_NO_ERROR ? 0 : 1);
+    text[sizeof(text) - 1] = '\0';
+    for (character = 0; character < sizeof(pixels); character += 4)
     {
-        return;
+        pixels[character] = 0;
+        pixels[character + 1] = 0xff;
+        pixels[character + 2] = 0;
+        pixels[character + 3] = 0;
     }
-
-    vertex = &s_vertices[s_vertex_count * VERTEX_FLOATS];
-    vertex[0] = x;
-    vertex[1] = y;
-    vertex[2] = r;
-    vertex[3] = g;
-    vertex[4] = b;
-    vertex[5] = 1.0f;
-    ++s_vertex_count;
-}
-
-static void AddCell(float x, float y, float size, float r, float g, float b)
-{
-    const float left = -0.94f + x * 0.012f;
-    const float right = left + size * 0.012f;
-    const float top = 0.92f - y * 0.020f;
-    const float bottom = top - size * 0.020f;
-
-    AddVertex(left, top, r, g, b);
-    AddVertex(right, top, r, g, b);
-    AddVertex(left, bottom, r, g, b);
-    AddVertex(right, top, r, g, b);
-    AddVertex(right, bottom, r, g, b);
-    AddVertex(left, bottom, r, g, b);
-}
-
-static void DrawText(float x, float y, float size, const char* text, float r,
-    float g, float b)
-{
-    const char* cursor = text;
-
-    while (*cursor)
+    for (character = 0; text[character]; ++character)
     {
-        const char* glyph = Glyph(*cursor);
-        int row;
-
-        if (glyph)
+        const char* glyph = Glyph(text[character]);
+        if (!glyph)
         {
-            for (row = 0; row < 5; ++row)
+            continue;
+        }
+        for (row = 0; row < 5; ++row)
+        {
+            for (column = 0; column < 3; ++column)
             {
-                int column;
-
-                for (column = 0; column < 3; ++column)
+                if (glyph[row * 3 + column] == '1')
                 {
-                    if (glyph[row * 3 + column] == '1')
+                    int x = character * 8 + column * 2;
+                    int y = row * 2;
+                    int dx;
+                    int dy;
+                    for (dy = 0; dy < 2; ++dy)
                     {
-                        AddCell(x + column * size, y + row * size, size, r,
-                            g, b);
+                        for (dx = 0; dx < 2; ++dx)
+                        {
+                            unsigned char* pixel = &pixels[((y + dy) * 112 +
+                                x + dx) * 4];
+                            pixel[0] = 0xff;
+                            pixel[1] = 0xff;
+                            pixel[2] = 0xff;
+                            pixel[3] = 0xff;
+                        }
                     }
                 }
             }
         }
-
-        x += 4.0f * size;
-        ++cursor;
     }
+    SDL_UpdateTexture(texture, 0, pixels, 112 * 4);
 }
 
-static void DrawDiagnosticFrame(void)
+static bool InitDemo(SDL_Renderer* renderer)
 {
-    char tick_text[20];
-    DWORD now = GetTickCount();
-    float pulse = (float)(sin((now - s_start_tick) * 0.004) * 0.5 + 0.5);
+    s_checker = CreateTexture(renderer, 64, 64, SDL_TEXTUREACCESS_STATIC);
+    s_sprite = CreateTexture(renderer, 32, 32, SDL_TEXTUREACCESS_STATIC);
+    s_overlay = CreateTexture(renderer, 32, 32, SDL_TEXTUREACCESS_STATIC);
+    s_streaming = CreateTexture(renderer, 128, 32, SDL_TEXTUREACCESS_STREAMING);
+    s_text = CreateTexture(renderer, 112, 10, SDL_TEXTUREACCESS_STATIC);
+    if (!s_checker || !s_sprite || !s_overlay || !s_streaming || !s_text)
+    {
+        return false;
+    }
+    FillChecker(s_checker);
+    FillSprite(s_sprite, false);
+    FillSprite(s_overlay, true);
+    FillDiagnosticText(s_text, renderer);
+    SDL_SetTextureScaleMode(s_checker, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(s_sprite, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(s_overlay, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureBlendMode(s_sprite, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(s_overlay, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(s_text, SDL_BLENDMODE_BLEND);
+    return true;
+}
 
-    glClearColor(0.02f + 0.04f * pulse, 0.04f,
-        0.08f + 0.10f * pulse, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    s_vertex_count = 0;
-    DrawText(10.0f, 5.0f, 2.0f, "HELLO", 0.2f, 0.9f, 1.0f);
-    DrawText(10.0f, 20.0f, 2.0f, "FROM", 0.2f, 1.0f, 0.4f);
-    DrawText(10.0f, 35.0f, 1.8f, "SEATTLE", 1.0f, 0.9f, 0.2f);
-    _snprintf(tick_text, sizeof(tick_text) - 1, "TICK %08lu",
-        (unsigned long)(now - s_start_tick));
-    tick_text[sizeof(tick_text) - 1] = '\0';
-    DrawText(10.0f, 50.0f, 2.0f, tick_text, 1.0f, 1.0f, 1.0f);
-    DrawText(10.0f, 65.0f, 1.8f,
-        s_shutdown_requested ? "QUIT CLEANUP" : "TOUCH EXIT", 1.0f, 0.5f,
-        0.3f);
-    glUniform2f(s_rotation_uniform, 1.0f, 0.0f);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
-        VERTEX_FLOATS * sizeof(GLfloat), s_vertices);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-        VERTEX_FLOATS * sizeof(GLfloat), s_vertices + 2);
-    glDrawArrays(GL_TRIANGLES, 0, s_vertex_count);
+static void UpdateStreamingTexture(void)
+{
+    void* pixels;
+    int pitch;
+    int x;
+    int y;
+    DWORD tick = GetTickCount() - s_start_tick;
+
+    if (!SDL_LockTexture(s_streaming, 0, &pixels, &pitch))
+    {
+        return;
+    }
+    for (y = 0; y < 32; ++y)
+    {
+        unsigned char* row = (unsigned char*)pixels + y * pitch;
+        for (x = 0; x < 128; ++x)
+        {
+            unsigned char* pixel = row + x * 4;
+            pixel[0] = (unsigned char)(x + tick / 8);
+            pixel[1] = (unsigned char)(y * 8);
+            pixel[2] = (unsigned char)(255 - x);
+            pixel[3] = 0xff;
+        }
+    }
+    SDL_UnlockTexture(s_streaming);
+}
+
+static bool DrawDemo(SDL_Renderer* renderer)
+{
+    SDL_FRect checker = { 8.0f, 24.0f, 96.0f, 96.0f };
+    SDL_FRect sprite = { 42.0f, 58.0f, 48.0f, 48.0f };
+    SDL_FRect overlay = { 64.0f, 32.0f, 32.0f, 32.0f };
+    SDL_FRect stream = { 16.0f, 130.0f, 128.0f, 32.0f };
+    SDL_FRect text = { 8.0f, 8.0f, 112.0f, 10.0f };
+
+    if (!SDL_SetRenderDrawColor(renderer, 0xa0, 0x00, 0xa0, 0xff))
+    {
+        return false;
+    }
+    if (!SDL_RenderClear(renderer))
+    {
+        return false;
+    }
+    UpdateStreamingTexture();
+    FillDiagnosticText(s_text, renderer);
+    if (!SDL_RenderTexture(renderer, s_checker, 0, &checker) ||
+        !SDL_RenderTexture(renderer, s_sprite, 0, &sprite) ||
+        !SDL_RenderTexture(renderer, s_overlay, 0, &overlay) ||
+        !SDL_RenderTexture(renderer, s_streaming, 0, &stream) ||
+        !SDL_RenderTexture(renderer, s_text, 0, &text))
+    {
+        return false;
+    }
+    if (!SDL_RenderPresent(renderer))
+    {
+        return false;
+    }
+    return true;
 }
 
 void handle_resize(SDL_Renderer* renderer)
 {
-    (void)renderer;
+    /* app.c calls this before init_core creates the GLES2 context. */
+    if (renderer && renderer->initialized)
+    {
+        renderer_gles2_set_viewport(renderer, 160, 205);
+    }
 }
 
 bool init_core(SDL_Renderer* renderer)
 {
     ZDK_INPUT_STATE input;
 
-    (void)renderer;
     SuppressReboot();
-    LogStage("reboot suppression configured");
     ZDKSystem_ShowSplashScreen(false);
     SystemIdleTimerReset();
-    LogStage("splash hidden and user activity signalled");
     ZDKGL_Initialize();
     s_graphics_initialized = true;
-    LogStage("GLES2 initialized");
-    if (!InitDiagnosticGraphics())
+    if (!renderer_gles2_initialize(renderer) || !InitDemo(renderer))
     {
-        LogStage("FAILURE loading diagnostic shaders");
         return false;
     }
-
     ZDKInput_GetState(&input);
     s_start_tick = GetTickCount();
-    LogStage("input polling and callback iteration ready");
     return true;
 }
 
@@ -307,36 +295,39 @@ bool iterate_core(SDL_Renderer* renderer)
     ZDK_INPUT_STATE input;
     DWORD now;
 
-    (void)renderer;
     ZDKInput_GetState(&input);
     now = GetTickCount();
     if (input.TouchState.Count > 0 && !s_shutdown_requested)
     {
         s_shutdown_requested = true;
         s_shutdown_started = now;
-        SystemIdleTimerReset();
-        LogStage("shutdown requested by touch");
     }
-
     ZDKGL_BeginDraw();
-    DrawDiagnosticFrame();
+    if (!DrawDemo(renderer))
+    {
+        ZDKGL_EndDraw();
+        return false;
+    }
     ZDKGL_EndDraw();
     return !s_shutdown_requested || now - s_shutdown_started < 350;
 }
 
 void destroy_core(void)
 {
+    SDL_DestroyTexture(s_checker);
+    SDL_DestroyTexture(s_sprite);
+    SDL_DestroyTexture(s_overlay);
+    SDL_DestroyTexture(s_streaming);
+    SDL_DestroyTexture(s_text);
+    s_checker = 0;
+    s_sprite = 0;
+    s_overlay = 0;
+    s_streaming = 0;
+    s_text = 0;
     if (s_graphics_initialized)
     {
-        if (s_program)
-        {
-            glDeleteProgram(s_program);
-        }
-
+        renderer_gles2_shutdown(0);
         ZDKGL_Cleanup();
-        s_program = 0;
         s_graphics_initialized = false;
     }
-
-    LogStage("GLES2 cleanup complete");
 }
