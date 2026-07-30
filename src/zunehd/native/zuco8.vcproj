@@ -53,9 +53,10 @@
 				Name="VCCLCompilerTool"
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
+				ForcedIncludeFiles="$(ProjectDir)C99\z8lua_ce_compat.h"
 				Optimization="0"
 				AdditionalIncludeDirectories="$(ProjectDir);$(ProjectDir)C99"
-				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
+				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS;inline=__inline"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
 				EnableFunctionLevelLinking="true"
@@ -153,9 +154,10 @@
 				Name="VCCLCompilerTool"
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
+				ForcedIncludeFiles="$(ProjectDir)C99\z8lua_ce_compat.h"
 				Optimization="2"
 				AdditionalIncludeDirectories="$(ProjectDir);$(ProjectDir)C99"
-				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
+				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS;inline=__inline"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				UsePrecompiledHeader="0"
@@ -263,6 +265,40 @@
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
+			<Filter
+				Name="z8lua"
+				Filter="c"
+				UniqueIdentifier="{A8BDA617-E8D7-4B5B-B208-5CB1430C25F3}"
+				>
+				<File RelativePath="..\..\z8lua\lapi.c" />
+				<File RelativePath="..\..\z8lua\lauxlib.c" />
+				<File RelativePath="..\..\z8lua\lbaselib.c" />
+				<File RelativePath="..\..\z8lua\lcode.c" />
+				<File RelativePath="..\..\z8lua\lcorolib.c" />
+				<File RelativePath="..\..\z8lua\lctype.c" />
+				<File RelativePath="..\..\z8lua\ldblib.c" />
+				<File RelativePath="..\..\z8lua\ldebug.c" />
+				<File RelativePath="..\..\z8lua\ldo.c" />
+				<File RelativePath="..\..\z8lua\ldump.c" />
+				<File RelativePath="..\..\z8lua\lfunc.c" />
+				<File RelativePath="..\..\z8lua\lgc.c" />
+				<File RelativePath="..\..\z8lua\linit.c" />
+				<File RelativePath="..\..\z8lua\llex.c" />
+				<File RelativePath="..\..\z8lua\lmem.c" />
+				<File RelativePath="..\..\z8lua\lobject.c" />
+				<File RelativePath="..\..\z8lua\lopcodes.c" />
+				<File RelativePath="..\..\z8lua\lparser.c" />
+				<File RelativePath="..\..\z8lua\lpico8lib.c" />
+				<File RelativePath="..\..\z8lua\lstate.c" />
+				<File RelativePath="..\..\z8lua\lstring.c" />
+				<File RelativePath="..\..\z8lua\lstrlib.c" />
+				<File RelativePath="..\..\z8lua\ltable.c" />
+				<File RelativePath="..\..\z8lua\ltablib.c" />
+				<File RelativePath="..\..\z8lua\ltm.c" />
+				<File RelativePath="..\..\z8lua\lundump.c" />
+				<File RelativePath="..\..\z8lua\lvm.c" />
+				<File RelativePath="..\..\z8lua\lzio.c" />
+			</Filter>
 			<File
 				RelativePath=".\callback_runtime.cpp"
 				>
@@ -323,6 +359,10 @@
 			</File>
 			<File
 				RelativePath=".\sdl_compat.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\z8lua_ce_compat.cpp"
 				>
 			</File>
 			<File
