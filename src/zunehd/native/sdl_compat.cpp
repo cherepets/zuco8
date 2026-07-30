@@ -1,36 +1,11 @@
-#include "SDL3/SDL.h"
+#include "renderer_gles2.h"
 
-#include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
-#include <windows.h>
-
-struct SDL_Window
-{
-    int width;
-    int height;
-};
-
-struct SDL_Renderer
-{
-    SDL_Window* window;
-};
 
 static SDL_Window s_window;
 static SDL_Renderer s_renderer;
 static Uint32 s_initialized;
 static const char* s_error = "";
-
-static void DebugOutput(const char* message)
-{
-    wchar_t wide_message[512];
-
-    if (MultiByteToWideChar(CP_ACP, 0, message, -1, wide_message,
-        sizeof(wide_message) / sizeof(wide_message[0])) > 0)
-    {
-        OutputDebugStringW(wide_message);
-    }
-}
 
 bool SDL_SetHint(const char* name, const char* value)
 {
@@ -109,6 +84,33 @@ SDL_Renderer* SDL_CreateRenderer(SDL_Window* window, const char* name)
     return &s_renderer;
 }
 
+SDL_Window* SDL_GetRenderWindow(SDL_Renderer* renderer)
+{
+    return renderer ? renderer->window : 0;
+}
+
+bool SDL_GetWindowSize(SDL_Window* window, int* width, int* height)
+{
+    if (!window || !width || !height)
+    {
+        return false;
+    }
+    *width = window->width;
+    *height = window->height;
+    return true;
+}
+
+bool SDL_GetRenderOutputSize(SDL_Renderer* renderer, int* width, int* height)
+{
+    if (!renderer || !width || !height)
+    {
+        return false;
+    }
+    *width = renderer->output_width;
+    *height = renderer->output_height;
+    return true;
+}
+
 SDL_AudioDeviceID SDL_OpenAudioDevice(SDL_AudioDeviceID device,
     const SDL_AudioSpec* spec)
 {
@@ -124,17 +126,42 @@ void SDL_CloseAudioDevice(SDL_AudioDeviceID device)
     (void)device;
 }
 
+SDL_PropertiesID SDL_GetRendererProperties(SDL_Renderer* renderer)
+{
+    return renderer;
+}
+
+void* SDL_GetPointerProperty(SDL_PropertiesID properties, const char* name,
+    void* fallback)
+{
+    static const SDL_PixelFormat formats[] = { SDL_PIXELFORMAT_RGBA32,
+        SDL_PIXELFORMAT_UNKNOWN };
+    (void)properties;
+    if (name && strcmp(name, SDL_PROP_RENDERER_TEXTURE_FORMATS_POINTER) == 0)
+    {
+        return (void*)formats;
+    }
+    return fallback;
+}
+
+const SDL_PixelFormatDetails* SDL_GetPixelFormatDetails(SDL_PixelFormat format)
+{
+    static SDL_PixelFormatDetails details = { SDL_PIXELFORMAT_RGBA32 };
+    return format == SDL_PIXELFORMAT_RGBA32 ? &details : 0;
+}
+
+unsigned int SDL_MapRGB(const SDL_PixelFormatDetails* details, void* palette,
+    unsigned char red, unsigned char green, unsigned char blue)
+{
+    (void)details;
+    (void)palette;
+    return red | ((unsigned int)green << 8) | ((unsigned int)blue << 16) |
+        0xff000000u;
+}
+
 void SDL_Log(const char* format, ...)
 {
-    char buffer[512];
-    va_list arguments;
-
-    va_start(arguments, format);
-    _vsnprintf(buffer, sizeof(buffer) - 3, format, arguments);
-    va_end(arguments);
-    buffer[sizeof(buffer) - 3] = '\0';
-    strcat(buffer, "\r\n");
-    DebugOutput(buffer);
+    (void)format;
 }
 
 const char* SDL_GetError(void)
