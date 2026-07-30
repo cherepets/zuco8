@@ -26,6 +26,10 @@ struct SDL_Renderer
     int output_height;
     int logical_width;
     int logical_height;
+    int viewport_x;
+    int viewport_y;
+    int viewport_width;
+    int viewport_height;
     unsigned char clear_red;
     unsigned char clear_green;
     unsigned char clear_blue;
@@ -39,3 +43,5 @@ struct SDL_Renderer
 bool renderer_gles2_initialize(SDL_Renderer* renderer);
 void renderer_gles2_shutdown(SDL_Renderer* renderer);
 void renderer_gles2_set_viewport(SDL_Renderer* renderer, int width, int height);
+bool renderer_gles2_map_touch(const SDL_Renderer* renderer, float physical_x,
+    float physical_y, float* logical_x, float* logical_y);

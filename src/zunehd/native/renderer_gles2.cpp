@@ -109,7 +109,8 @@ bool renderer_gles2_initialize(SDL_Renderer* renderer)
         return false;
     }
     renderer->initialized = true;
-    renderer_gles2_set_viewport(renderer, 160, 205);
+    renderer_gles2_set_viewport(renderer, renderer->output_width,
+        renderer->output_height);
     return glGetError() == GL_NO_ERROR;
 }
 
@@ -156,9 +157,31 @@ void renderer_gles2_set_viewport(SDL_Renderer* renderer, int width, int height)
     }
     viewport_width = (int)(width * scale);
     viewport_height = (int)(height * scale);
-    glViewport((renderer->output_width - viewport_width) / 2,
-        (renderer->output_height - viewport_height) / 2,
-        viewport_width, viewport_height);
+    renderer->viewport_x = (renderer->output_width - viewport_width) / 2;
+    renderer->viewport_y = (renderer->output_height - viewport_height) / 2;
+    renderer->viewport_width = viewport_width;
+    renderer->viewport_height = viewport_height;
+    glViewport(renderer->viewport_x, renderer->viewport_y, viewport_width,
+        viewport_height);
+}
+
+bool renderer_gles2_map_touch(const SDL_Renderer* renderer, float physical_x,
+    float physical_y, float* logical_x, float* logical_y)
+{
+    if (!renderer || !logical_x || !logical_y || renderer->viewport_width <= 0 ||
+        renderer->viewport_height <= 0 || physical_x < renderer->viewport_x ||
+        physical_y < renderer->viewport_y ||
+        physical_x >= renderer->viewport_x + renderer->viewport_width ||
+        physical_y >= renderer->viewport_y + renderer->viewport_height)
+    {
+        return false;
+    }
+
+    *logical_x = (physical_x - renderer->viewport_x) *
+        renderer->logical_width / renderer->viewport_width;
+    *logical_y = (physical_y - renderer->viewport_y) *
+        renderer->logical_height / renderer->viewport_height;
+    return true;
 }
 
 static void AddVertex(float x, float y, float u, float v)
