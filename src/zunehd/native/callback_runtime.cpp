@@ -50,6 +50,14 @@ static int s_margin_touches;
 static unsigned int s_active_buttons;
 static bool s_exit_region_active;
 static TouchDiagnostic s_touches[MAX_TOUCHES];
+static char s_asset_base_path[48];
+static char s_asset_first_cart[32];
+static unsigned int s_asset_cart_count;
+static long s_buttons_size;
+static long s_dpad_size;
+static const char* s_asset_error;
+static bool s_assets_ready;
+static bool s_working_directory_ready;
 
 static void SuppressReboot(void)
 {
@@ -68,6 +76,142 @@ static void SuppressReboot(void)
             sizeof(value));
         RegCloseKey(key);
     }
+}
+
+static void RecordAssetError(const char* error)
+{
+    if (!s_asset_error)
+    {
+        s_asset_error = error;
+    }
+}
+
+static long FileSize(const char* file_name)
+{
+    FILE* file;
+    long size;
+
+    file = fopen(file_name, "rb");
+    if (!file)
+    {
+        return -1;
+    }
+    if (fseek(file, 0, SEEK_END) != 0)
+    {
+        fclose(file);
+        return -1;
+    }
+    size = ftell(file);
+    fclose(file);
+    return size;
+}
+
+static long ModuleFileSize(const char* base_path, const char* file_name)
+{
+    char* path = 0;
+    long size = -1;
+
+    if (!base_path)
+    {
+        return FileSize(file_name);
+    }
+    if (SDL_asprintf(&path, "%s%s", base_path, file_name) >= 0 && path)
+    {
+        size = FileSize(path);
+    }
+    SDL_free(path);
+    return size;
+}
+
+static SDL_EnumerationResult CountCart(void* userdata, const char* dirname,
+    const char* file_name)
+{
+    (void)userdata;
+    (void)dirname;
+
+    ++s_asset_cart_count;
+    if (!s_asset_first_cart[0])
+    {
+        strncpy(s_asset_first_cart, file_name,
+            sizeof(s_asset_first_cart) - 1);
+        s_asset_first_cart[sizeof(s_asset_first_cart) - 1] = '\0';
+    }
+    return SDL_ENUM_CONTINUE;
+}
+
+static void CopyAssetPathForDisplay(char* destination, int capacity,
+    const char* source)
+{
+    int index;
+
+    if (!destination || capacity <= 0)
+    {
+        return;
+    }
+    for (index = 0; source && source[index] && index < capacity - 1; ++index)
+    {
+        char character = source[index];
+
+        if (character >= 'a' && character <= 'z')
+        {
+            character = (char)(character - 'a' + 'A');
+        }
+        destination[index] = character;
+    }
+    destination[index] = '\0';
+}
+
+static void ProbePackagedAssets(void)
+{
+    char* base_path;
+    char* carts_path;
+
+    s_asset_base_path[0] = '\0';
+    s_asset_first_cart[0] = '\0';
+    s_asset_cart_count = 0;
+    s_buttons_size = -1;
+    s_dpad_size = -1;
+    s_asset_error = 0;
+    s_assets_ready = false;
+
+    base_path = SDL_GetBasePath();
+    if (!base_path)
+    {
+        RecordAssetError("BASE PATH");
+    }
+    carts_path = 0;
+    if (base_path)
+    {
+        CopyAssetPathForDisplay(s_asset_base_path, sizeof(s_asset_base_path),
+            base_path);
+        if (SDL_asprintf(&carts_path, "%scarts", base_path) < 0 ||
+            !carts_path)
+        {
+            RecordAssetError("CART PATH");
+        }
+        else if (!SDL_EnumerateDirectory(carts_path, CountCart, 0))
+        {
+            RecordAssetError("CART ENUM");
+        }
+    }
+    SDL_free(carts_path);
+
+    if (s_asset_cart_count != 18)
+    {
+        RecordAssetError("CART COUNT");
+    }
+    s_buttons_size = ModuleFileSize(base_path, "buttons.png");
+    if (s_buttons_size < 0)
+    {
+        RecordAssetError("BUTTONS READ");
+    }
+    s_dpad_size = ModuleFileSize(base_path, "dpad.png");
+    if (s_dpad_size < 0)
+    {
+        RecordAssetError("DPAD READ");
+    }
+    SDL_free(base_path);
+    s_assets_ready = s_asset_error == 0;
 }
 
 static float NormalizeCoordinate(float value, int extent)
@@ -275,7 +419,10 @@ static const char* Glyph(char character)
     case '9': return "010101010011110";
     case ':': return "000010000010000";
     case ',': return "000000000010100";
+    case '.': return "000000000000010";
     case '-': return "000000111000000";
+    case '\\': return "100010001000100";
+    case '/': return "001001010100100";
     default: return 0;
     }
 }
@@ -384,17 +531,29 @@ static void DrawDiagnostic(SDL_Renderer* renderer)
                 0xff);
         }
     }
-    DrawText(pixels, 3, 3, "TOUCH DIAG", 1, 0x60, 0xf0, 0xff);
-    DrawText(pixels, 115, 3, "PASS", 1, 0x60, 0xff, 0x80);
-    _snprintf(line, sizeof(line) - 1, "OUT %dX%d", renderer->output_width,
-        renderer->output_height);
+    DrawText(pixels, 3, 3, "ASSET DIAG", 1, 0x60, 0xf0, 0xff);
+    DrawText(pixels, 124, 3, s_assets_ready ? "PASS" : "FAIL", 1,
+        s_assets_ready ? 0x60 : 0xff, s_assets_ready ? 0xff : 0x80, 0x80);
+    _snprintf(line, sizeof(line) - 1, "BASE");
     line[sizeof(line) - 1] = '\0';
     DrawText(pixels, 3, 11, line, 1, 0xd0, 0xd0, 0x80);
-    _snprintf(line, sizeof(line) - 1, "IN%d OUT%d D%u M%u U%u",
-        s_input_count, s_margin_touches, s_down_events,
-        s_motion_events, s_up_events);
+    DrawText(pixels, 3, 19, s_asset_base_path, 1, 0xd0, 0xd0, 0x80);
+    DrawText(pixels, 3, 27, s_working_directory_ready ? "CWD SET" :
+        "CWD NO", 1, 0xa0, 0xd0, 0xff);
+    _snprintf(line, sizeof(line) - 1, "CARTS %u %s", s_asset_cart_count,
+        s_asset_first_cart);
     line[sizeof(line) - 1] = '\0';
-    DrawText(pixels, 3, 27, line, 1, 0xff, 0xff, 0xff);
+    DrawText(pixels, 3, 35, line, 1, 0xff, 0xff, 0xff);
+    _snprintf(line, sizeof(line) - 1, "BTN %d DPD %d", (int)s_buttons_size,
+        (int)s_dpad_size);
+    line[sizeof(line) - 1] = '\0';
+    DrawText(pixels, 3, 43, line, 1, 0xa0, 0xd0, 0xff);
+    if (s_asset_error)
+    {
+        _snprintf(line, sizeof(line) - 1, "ERR %s", s_asset_error);
+        line[sizeof(line) - 1] = '\0';
+        DrawText(pixels, 3, 51, line, 1, 0xff, 0x80, 0x80);
+    }
     for (index = 0; index < MAX_TOUCHES; ++index)
     {
         TouchDiagnostic* touch = &s_touches[index];
@@ -423,7 +582,7 @@ static void DrawDiagnostic(SDL_Renderer* renderer)
                 touch->id, raw_x, raw_y, pressure);
         }
         line[sizeof(line) - 1] = '\0';
-        DrawText(pixels, 3, 35 + index * 7, line, 1, 0xff,
+        DrawText(pixels, 3, 59 + index * 7, line, 1, 0xff,
             touch->inside_viewport ? 0xff : 0x80, 0x80);
     }
     DrawText(pixels, 3, 202, "PAD L R U D O X", 1, 0xa0, 0xd0, 0xff);
@@ -453,6 +612,7 @@ bool init_core(SDL_Renderer* renderer)
     SuppressReboot();
     ZDKSystem_ShowSplashScreen(false);
     SystemIdleTimerReset();
+    s_working_directory_ready = SDL_ZuneSetWorkingDirectoryFromModule();
     if (FAILED(ZDKInput_Initialize()))
     {
         return false;
@@ -471,6 +631,7 @@ bool init_core(SDL_Renderer* renderer)
     {
         return false;
     }
+    ProbePackagedAssets();
     return true;
 }
 
