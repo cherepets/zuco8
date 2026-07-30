@@ -12,6 +12,14 @@ typedef struct SDL_Texture SDL_Texture;
 typedef struct SDL_Gamepad SDL_Gamepad;
 typedef unsigned int SDL_PixelFormat;
 typedef void* SDL_PropertiesID;
+typedef enum SDL_EnumerationResult
+{
+    SDL_ENUM_CONTINUE,
+    SDL_ENUM_SUCCESS,
+    SDL_ENUM_FAILURE
+} SDL_EnumerationResult;
+typedef SDL_EnumerationResult (*SDL_EnumerateDirectoryCallback)(void* userdata,
+    const char* dirname, const char* fname);
 typedef struct SDL_FRect
 {
     float x;
@@ -97,6 +105,11 @@ bool SDL_SetAppMetadataProperty(const char* name, const char* value);
 bool SDL_Init(Uint32 flags);
 bool SDL_InitSubSystem(Uint32 flags);
 void SDL_Quit(void);
+char* SDL_GetBasePath(void);
+bool SDL_EnumerateDirectory(const char* path,
+    SDL_EnumerateDirectoryCallback callback, void* userdata);
+int SDL_asprintf(char** strp, const char* format, ...);
+void SDL_free(void* memory);
 bool SDL_PollEvent(SDL_Event* event);
 SDL_Window* SDL_CreateWindow(const char* title, int width, int height, Uint32 flags);
 SDL_Renderer* SDL_CreateRenderer(SDL_Window* window, const char* name);
@@ -132,3 +145,4 @@ void SDL_ZuneTouchUpdate(Uint64 finger_id, float x, float y, float pressure);
 void SDL_ZuneTouchEndFrame(void);
 void SDL_ZuneTouchReset(void);
 float SDL_ZuneClampUnit(float value);
+bool SDL_ZuneSetWorkingDirectoryFromModule(void);
