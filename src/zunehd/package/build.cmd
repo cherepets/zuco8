@@ -19,6 +19,11 @@ if errorlevel 1 (
     )
 )
 
+if not exist "%RESOURCE_SOURCE%\lua_diag.lua" (
+    echo Missing Lua diagnostic: %RESOURCE_SOURCE%\lua_diag.lua
+    exit /b 1
+)
+
 echo BUILD_CONFIGURATION = %BUILD_CONFIGURATION%
 if exist data rmdir /s /q data
 mkdir data\Content
@@ -31,6 +36,8 @@ if errorlevel 1 exit /b 1
 copy /y "%NATIVE_BIN%\vertex.nvbv" data\Content\vertex.nvbv >nul
 if errorlevel 1 exit /b 1
 copy /y "%RESOURCE_SOURCE%\*.png" data\Content >nul
+if errorlevel 1 exit /b 1
+copy /y "%RESOURCE_SOURCE%\lua_diag.lua" data\Content\lua_diag.lua >nul
 if errorlevel 1 exit /b 1
 mkdir data\Content\carts
 copy /y "%CARTS_SOURCE%\*.PNG" data\Content\carts >nul
