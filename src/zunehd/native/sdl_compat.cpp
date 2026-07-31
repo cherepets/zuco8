@@ -5,11 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
+#include <zdkinput.h>
+#include <zdkgl.h>
+#include <zdksystem.h>
 
 static SDL_Window s_window;
 static SDL_Renderer s_renderer;
 static Uint32 s_initialized;
 static const char* s_error = "";
+
+static bool s_platform_initialized;
+static bool s_input_initialized;
+static bool s_graphics_initialized;
 
 enum
 {
@@ -207,6 +214,25 @@ static ZuneFinger* AllocateFinger(void)
     return 0;
 }
 
+static void SuppressReboot(void)
+{
+    HKEY key = 0;
+    DWORD value;
+
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+        L"System\\CurrentControlSet\\Control\\Power\\State\\Reboot", 0, 0,
+        &key) == ERROR_SUCCESS)
+    {
+        value = 0x10000;
+        RegSetValueEx(key, L"Flags", 0, REG_DWORD, (BYTE*)&value,
+            sizeof(value));
+        value = 0;
+        RegSetValueEx(key, L"Default", 0, REG_DWORD, (BYTE*)&value,
+            sizeof(value));
+        RegCloseKey(key);
+    }
+}
+
 bool SDL_SetHint(const char* name, const char* value)
 {
     (void)name;
@@ -238,6 +264,21 @@ bool SDL_SetAppMetadataProperty(const char* name, const char* value)
 bool SDL_Init(Uint32 flags)
 {
     s_initialized |= flags;
+
+    if (!s_platform_initialized && (flags & SDL_INIT_VIDEO))
+    {
+        s_platform_initialized = true;
+        SuppressReboot();
+        ZDKSystem_ShowSplashScreen(false);
+        SystemIdleTimerReset();
+        SDL_ZuneSetWorkingDirectoryFromModule();
+        if (FAILED(ZDKInput_Initialize()))
+        {
+            s_error = "ZDKInput_Initialize failed";
+            return false;
+        }
+        s_input_initialized = true;
+    }
     return true;
 }
 
@@ -249,9 +290,42 @@ bool SDL_InitSubSystem(Uint32 flags)
 
 void SDL_Quit(void)
 {
+    if (s_graphics_initialized)
+    {
+        renderer_gles2_shutdown(&s_renderer);
+        ZDKGL_Cleanup();
+        s_graphics_initialized = false;
+    }
+    if (s_input_initialized)
+    {
+        ZDKInput_Shutdown();
+        s_input_initialized = false;
+    }
+    s_platform_initialized = false;
     s_initialized = 0;
     s_renderer.window = 0;
     SDL_ZuneTouchReset();
+}
+
+Uint64 SDL_GetTicks(void)
+{
+    return (Uint64)GetTickCount();
+}
+
+Uint64 SDL_GetPerformanceCounter(void)
+{
+    return (Uint64)GetTickCount() * 1000ull;
+}
+
+void SDL_DelayNS(Uint64 nanoseconds)
+{
+    DWORD milliseconds = (DWORD)(nanoseconds / 1000000ull);
+
+    if (milliseconds == 0 && nanoseconds != 0)
+    {
+        milliseconds = 1;
+    }
+    Sleep(milliseconds);
 }
 
 char* SDL_GetBasePath(void)
@@ -406,9 +480,62 @@ bool SDL_EnumerateDirectory(const char* path,
     return result;
 }
 
+static bool s_touch_polled_this_frame;
+static bool s_touch_coordinates_are_physical;
+
+static float NormalizeZuneCoordinate(float value, int extent)
+{
+    if (value > 1.0f)
+    {
+        s_touch_coordinates_are_physical = true;
+    }
+    if (s_touch_coordinates_are_physical && extent > 0)
+    {
+        return SDL_ZuneClampUnit(value / extent);
+    }
+    return SDL_ZuneClampUnit(value);
+}
+
+static void PollZuneTouch(void)
+{
+    ZDK_INPUT_STATE input;
+    int index;
+
+    memset(&input, 0, sizeof(input));
+    ZDKInput_GetState(&input);
+    SDL_ZuneTouchBeginFrame();
+
+    if (input.TouchState.Count < 0)
+    {
+        input.TouchState.Count = 0;
+    }
+    if (input.TouchState.Count > MAX_TOUCH_FINGERS)
+    {
+        input.TouchState.Count = MAX_TOUCH_FINGERS;
+    }
+    for (index = 0; index < input.TouchState.Count; ++index)
+    {
+        ZDK_TOUCH_LOCATION* location = &input.TouchState.Locations[index];
+        float x = NormalizeZuneCoordinate(location->X, s_renderer.output_width);
+        float y = NormalizeZuneCoordinate(location->Y, s_renderer.output_height);
+
+        SDL_ZuneTouchUpdate(location->Id, x, y, location->Pressure);
+    }
+    SDL_ZuneTouchEndFrame();
+}
+
 bool SDL_PollEvent(SDL_Event* event)
 {
-    if (!event || s_event_count == 0)
+    if (!event)
+    {
+        return false;
+    }
+    if (s_event_count == 0 && !s_touch_polled_this_frame)
+    {
+        PollZuneTouch();
+        s_touch_polled_this_frame = true;
+    }
+    if (s_event_count == 0)
     {
         return false;
     }
@@ -416,6 +543,16 @@ bool SDL_PollEvent(SDL_Event* event)
     s_event_head = (s_event_head + 1) % MAX_TOUCH_EVENTS;
     --s_event_count;
     return true;
+}
+
+void SDL_ZuneTouchPollReset(void)
+{
+    s_touch_polled_this_frame = false;
+}
+
+SDL_Renderer* SDL_ZuneGetRenderer(void)
+{
+    return &s_renderer;
 }
 
 SDL_Window* SDL_CreateWindow(const char* title, int width, int height,
@@ -446,6 +583,17 @@ SDL_Renderer* SDL_CreateRenderer(SDL_Window* window, const char* name)
     }
 
     s_renderer.window = window;
+
+    if (!s_graphics_initialized)
+    {
+        ZDKGL_Initialize();
+        if (!renderer_gles2_initialize(&s_renderer))
+        {
+            s_error = "renderer_gles2_initialize failed";
+            return 0;
+        }
+        s_graphics_initialized = true;
+    }
     return &s_renderer;
 }
 
@@ -556,11 +704,11 @@ SDL_Finger** SDL_GetTouchFingers(Uint64 touch_id, int* count)
 
 const bool* SDL_GetKeyboardState(int* count)
 {
-    static bool no_keys[1];
+    static bool no_keys[512];
 
     if (count)
     {
-        *count = 1;
+        *count = 512;
     }
     return no_keys;
 }
@@ -576,6 +724,34 @@ bool SDL_GetGamepadButton(SDL_Gamepad* gamepad, int button)
     (void)gamepad;
     (void)button;
     return false;
+}
+
+SDL_Gamepad* SDL_OpenGamepad(SDL_JoystickID id)
+{
+    (void)id;
+    return 0;
+}
+
+SDL_Gamepad* SDL_GetGamepadFromID(SDL_JoystickID id)
+{
+    (void)id;
+    return 0;
+}
+
+void SDL_CloseGamepad(SDL_Gamepad* gamepad)
+{
+    (void)gamepad;
+}
+
+const char* SDL_GetGamepadName(SDL_Gamepad* gamepad)
+{
+    (void)gamepad;
+    return "";
+}
+
+void SDL_Delay(Uint32 milliseconds)
+{
+    Sleep(milliseconds);
 }
 
 void SDL_ZuneTouchBeginFrame(void)

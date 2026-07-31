@@ -290,6 +290,7 @@ bool SDL_RenderPresent(SDL_Renderer* renderer)
     s_current_texture = 0;
     error = glGetError();
     renderer->diagnostic_gl_error = error;
+    SDL_ZuneTouchPollReset();
     return error == GL_NO_ERROR;
 }
 
