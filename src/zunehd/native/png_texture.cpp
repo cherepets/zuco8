@@ -10,7 +10,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../misc/stb_image.h"
 
-static unsigned char* ReadFile(const char* file_name, long* size)
+static unsigned char* ReadFileBytes(const char* file_name, long* size)
 {
     FILE* file;
     unsigned char* data;
@@ -65,7 +65,7 @@ bool LoadPngTexture(SDL_Renderer* renderer, const char* file_name,
         SDL_free(base_path);
         return false;
     }
-    file_data = ReadFile(path, &file_size);
+    file_data = ReadFileBytes(path, &file_size);
     SDL_free(path);
     SDL_free(base_path);
     if (!file_data)
