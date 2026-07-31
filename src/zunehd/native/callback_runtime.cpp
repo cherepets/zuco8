@@ -1,4 +1,5 @@
 #include "renderer_gles2.h"
+#include "png_texture.h"
 
 #include <string.h>
 #include <windows.h>
@@ -8,15 +9,29 @@
 
 enum
 {
-    LOGICAL_WIDTH = 160,
-    LOGICAL_HEIGHT = 283,
-    GAME_X = 16,
-    GAME_Y = 64,
+    LOGICAL_WIDTH = 136,
+    LOGICAL_HEIGHT = 240,
+    GAME_X = 4,
+    GAME_Y = 4,
     GAME_SIZE = 128,
-    MAX_TOUCHES = 4
+    MAX_TOUCHES = 4,
+    DPAD_X = 0,
+    DPAD_Y = 162,
+    MENU_X = 44,
+    MENU_Y = 121,
+    O_X = 65,
+    O_Y = 192,
+    X_X = 88,
+    X_Y = 145,
+    DPAD_CELL_SIZE = 16,
+    DPAD_DRAW_SIZE = 54,
+    BUTTON_CELL_SIZE = 14,
+    BUTTON_DRAW_SIZE = 48
 };
 
 static SDL_Texture* s_canvas;
+static SDL_Texture* s_buttons_texture;
+static SDL_Texture* s_dpad_texture;
 static bool s_graphics_initialized;
 static bool s_input_initialized;
 static bool s_shutdown_requested;
@@ -59,13 +74,23 @@ static float NormalizeCoordinate(float value, int extent)
 static unsigned int ButtonMaskAt(float x, float y)
 {
     unsigned int mask = 0;
+    float dpad_x = x - DPAD_X;
+    float dpad_y = y - DPAD_Y;
 
-    if (x >= 7.0f && x < 29.0f && y >= 234.0f && y < 248.0f) mask |= 1;
-    if (x >= 43.0f && x < 65.0f && y >= 234.0f && y < 248.0f) mask |= 2;
-    if (x >= 29.0f && x < 43.0f && y >= 212.0f && y < 234.0f) mask |= 4;
-    if (x >= 29.0f && x < 43.0f && y >= 248.0f && y < 270.0f) mask |= 8;
-    if (x >= 92.0f && x < 120.0f && y >= 235.0f && y < 263.0f) mask |= 16;
-    if (x >= 122.0f && x < 150.0f && y >= 223.0f && y < 251.0f) mask |= 32;
+    if (dpad_x >= 13.0f && dpad_x < 41.0f && dpad_y >= 0.0f &&
+        dpad_y < 20.0f) mask |= 4;
+    if (dpad_x >= 34.0f && dpad_x < 54.0f && dpad_y >= 13.0f &&
+        dpad_y < 41.0f) mask |= 2;
+    if (dpad_x >= 13.0f && dpad_x < 41.0f && dpad_y >= 34.0f &&
+        dpad_y < 54.0f) mask |= 8;
+    if (dpad_x >= 0.0f && dpad_x < 20.0f && dpad_y >= 13.0f &&
+        dpad_y < 41.0f) mask |= 1;
+    if (x >= O_X && x < O_X + BUTTON_DRAW_SIZE && y >= O_Y &&
+        y < O_Y + BUTTON_DRAW_SIZE) mask |= 16;
+    if (x >= X_X && x < X_X + BUTTON_DRAW_SIZE && y >= X_Y &&
+        y < X_Y + BUTTON_DRAW_SIZE) mask |= 32;
+    if (x >= MENU_X && x < MENU_X + BUTTON_DRAW_SIZE && y >= MENU_Y &&
+        y < MENU_Y + BUTTON_DRAW_SIZE) mask |= 64;
     return mask;
 }
 
@@ -110,6 +135,37 @@ static void PollTouches(SDL_Renderer* renderer)
             location->Pressure);
     }
     SDL_ZuneTouchEndFrame();
+}
+
+static void SetPixel(unsigned char* pixels, int x, int y, unsigned char red,
+    unsigned char green, unsigned char blue)
+{
+    unsigned char* pixel;
+
+    if (x < 0 || x >= LOGICAL_WIDTH || y < 0 || y >= LOGICAL_HEIGHT)
+    {
+        return;
+    }
+    pixel = &pixels[(y * LOGICAL_WIDTH + x) * 4];
+    pixel[0] = red;
+    pixel[1] = green;
+    pixel[2] = blue;
+    pixel[3] = 0xff;
+}
+
+static void FillRect(unsigned char* pixels, int x, int y, int width, int height,
+    unsigned char red, unsigned char green, unsigned char blue)
+{
+    int row;
+    int column;
+
+    for (row = 0; row < height; ++row)
+    {
+        for (column = 0; column < width; ++column)
+        {
+            SetPixel(pixels, x + column, y + row, red, green, blue);
+        }
+    }
 }
 
 static const char* Glyph(char character)
@@ -162,25 +218,6 @@ static const char* Glyph(char character)
     }
 }
 
-static void SetPixel(unsigned char* pixels, int x, int y, unsigned char red,
-    unsigned char green, unsigned char blue)
-{
-    unsigned char* pixel;
-
-    if (x < 0 || x >= LOGICAL_WIDTH || y < 0 || y >= LOGICAL_HEIGHT)
-    {
-        return;
-    }
-    pixel = &pixels[(y * LOGICAL_WIDTH + x) * 4];
-    pixel[0] = red;
-    pixel[1] = green;
-    pixel[2] = blue;
-    pixel[3] = 0xff;
-}
-
-static void FillRect(unsigned char* pixels, int x, int y, int width, int height,
-    unsigned char red, unsigned char green, unsigned char blue)
-{
     int row;
     int column;
 
@@ -224,10 +261,12 @@ static void DrawControl(unsigned char* pixels, int x, int y, int width,
     int height, bool active, const char* label)
 {
     unsigned char shade = active ? 0xc0 : 0x35;
+    SDL_FRect source = { (float)source_x, (float)source_y,
+        (float)source_width, (float)source_height };
+    SDL_FRect destination = { (float)destination_x, (float)destination_y,
+        (float)destination_width, (float)destination_height };
 
-    FillRect(pixels, x, y, width, height, shade, active ? 0xd0 : 0x55, 0x50);
-    FillRect(pixels, x + 1, y + 1, width - 2, height - 2, 0x18, 0x18, 0x30);
-    DrawText(pixels, x + 2, y + 3, label, 1, shade, active ? 0xff : 0xaa, 0x60);
+    SDL_RenderTexture(renderer, texture, &source, &destination);
 }
 
 static void DrawFrame(SDL_Renderer* renderer)
@@ -244,20 +283,50 @@ static void DrawFrame(SDL_Renderer* renderer)
     }
     pixels = (unsigned char*)locked_pixels;
     memset(pixels, 0, LOGICAL_WIDTH * LOGICAL_HEIGHT * 4);
-    FillRect(pixels, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 0x08, 0x0d, 0x20);
+    FillRect(pixels, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, 0x00, 0x00, 0x00);
     FillRect(pixels, GAME_X - 1, GAME_Y - 1, GAME_SIZE + 2, GAME_SIZE + 2,
-        0x50, 0x80, 0xb0);
+        0xff, 0xff, 0xff);
     FillRect(pixels, GAME_X, GAME_Y, GAME_SIZE, GAME_SIZE, 0x00, 0x00, 0x00);
-    DrawText(pixels, 3, 202, "PAD L R U D O X", 1, 0xa0, 0xd0, 0xff);
-    DrawControl(pixels, 7, 234, 22, 14, (s_active_buttons & 1) != 0, "L");
-    DrawControl(pixels, 43, 234, 22, 14, (s_active_buttons & 2) != 0, "R");
-    DrawControl(pixels, 29, 212, 14, 22, (s_active_buttons & 4) != 0, "U");
-    DrawControl(pixels, 29, 248, 14, 22, (s_active_buttons & 8) != 0, "D");
-    DrawControl(pixels, 92, 235, 28, 28, (s_active_buttons & 16) != 0, "O");
-    DrawControl(pixels, 122, 223, 28, 28, (s_active_buttons & 32) != 0, "X");
     SDL_UnlockTexture(s_canvas);
     SDL_RenderTexture(renderer, s_canvas, 0, &destination);
-    SDL_RenderPresent(renderer);
+    DrawSprite(renderer, s_dpad_texture, 0, 0, DPAD_CELL_SIZE,
+        DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE, DPAD_DRAW_SIZE);
+    if (s_active_buttons & 4)
+    {
+        DrawSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE,
+            DPAD_DRAW_SIZE);
+    }
+    if (s_active_buttons & 2)
+    {
+        DrawSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 2, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE,
+            DPAD_DRAW_SIZE);
+    }
+    if (s_active_buttons & 8)
+    {
+        DrawSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 3, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE,
+            DPAD_DRAW_SIZE);
+    }
+    if (s_active_buttons & 1)
+    {
+        DrawSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 4, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE,
+            DPAD_DRAW_SIZE);
+    }
+    DrawSprite(renderer, s_buttons_texture,
+        (s_active_buttons & 64) ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE * 2,
+        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, MENU_X, MENU_Y,
+        BUTTON_DRAW_SIZE, BUTTON_DRAW_SIZE);
+    DrawSprite(renderer, s_buttons_texture,
+        (s_active_buttons & 16) ? BUTTON_CELL_SIZE : 0, 0,
+        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, O_X, O_Y, BUTTON_DRAW_SIZE,
+        BUTTON_DRAW_SIZE);
+    DrawSprite(renderer, s_buttons_texture,
+        (s_active_buttons & 32) ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE,
+        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, X_X, X_Y, BUTTON_DRAW_SIZE,
+        BUTTON_DRAW_SIZE);
 }
 
 void handle_resize(SDL_Renderer* renderer)
@@ -291,6 +360,16 @@ bool init_core(SDL_Renderer* renderer)
     {
         return false;
     }
+    if (!LoadPngTexture(renderer, "buttons.png", BUTTON_CELL_SIZE * 2,
+        BUTTON_CELL_SIZE * 3, &s_buttons_texture) || !LoadPngTexture(renderer,
+        "dpad.png", DPAD_CELL_SIZE * 5, DPAD_CELL_SIZE, &s_dpad_texture))
+    {
+        SDL_DestroyTexture(s_buttons_texture);
+        s_buttons_texture = 0;
+        SDL_DestroyTexture(s_dpad_texture);
+        s_dpad_texture = 0;
+        return false;
+    }
     return true;
 }
 
@@ -307,15 +386,20 @@ bool iterate_core(SDL_Renderer* renderer)
 
     PollTouches(renderer);
     ZDKGL_BeginDraw();
-    SDL_SetRenderDrawColor(renderer, 0x08, 0x0d, 0x20, 0xff);
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xff);
     SDL_RenderClear(renderer);
     DrawFrame(renderer);
+    SDL_RenderPresent(renderer);
     ZDKGL_EndDraw();
     return !s_shutdown_requested || now - s_shutdown_started < 350;
 }
 
 void destroy_core(void)
 {
+    SDL_DestroyTexture(s_dpad_texture);
+    s_dpad_texture = 0;
+    SDL_DestroyTexture(s_buttons_texture);
+    s_buttons_texture = 0;
     SDL_DestroyTexture(s_canvas);
     s_canvas = 0;
     SDL_ZuneTouchReset();
