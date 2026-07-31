@@ -815,28 +815,28 @@ static int pico8_fillp(lua_State* L)
         {
             default:
             case 128: // Solid.
-                pattern = 0b0000000000000000;
+                pattern = 0x0000;
                 break;
             case 129: // Checkerboard.
-                pattern = 0b0101101001011010;
+                pattern = 0x5A5A;
                 break;
             case 130: // Jelpi.
-                pattern = 0b0101000100011111;
+                pattern = 0x511F;
                 break;
             case 131: // Down key.
-                pattern = 0b0000000000000011;
+                pattern = 0x0003;
                 break;
             case 132: // Dot pattern.
-                pattern = 0b0111110101111101;
+                pattern = 0x7D7D;
                 break;
             case 133: // Throwing star.
-                pattern = 0b1011100000011101;
+                pattern = 0xB81D;
                 break;
             case 134: // Ball.
-                pattern = 0b1111100110011111;
+                pattern = 0xF99F;
                 break;
             case 135: // Heart.
-                pattern = 0b0101000110111111;
+                pattern = 0x51BF;
                 break;
         }
     }
