@@ -113,6 +113,19 @@ static bool GetModuleDirectory(wchar_t* directory, int capacity)
     return false;
 }
 
+float SDL_ZuneClampUnit(float value)
+{
+    if (value < 0.0f)
+    {
+        return 0.0f;
+    }
+    if (value > 1.0f)
+    {
+        return 1.0f;
+    }
+    return value;
+}
+
 bool SDL_ZuneSetWorkingDirectoryFromModule(void)
 {
     wchar_t directory[MAX_PATH];
@@ -139,19 +152,6 @@ bool SDL_ZuneSetWorkingDirectoryFromModule(void)
         return false;
     }
     return true;
-}
-
-float SDL_ZuneClampUnit(float value)
-{
-    if (value < 0.0f)
-    {
-        return 0.0f;
-    }
-    if (value > 1.0f)
-    {
-        return 1.0f;
-    }
-    return value;
 }
 
 static void QueueTouchEvent(Uint32 type, const SDL_Finger* finger,
