@@ -218,18 +218,6 @@ static const char* Glyph(char character)
     }
 }
 
-    int row;
-    int column;
-
-    for (row = 0; row < height; ++row)
-    {
-        for (column = 0; column < width; ++column)
-        {
-            SetPixel(pixels, x + column, y + row, red, green, blue);
-        }
-    }
-}
-
 static void DrawText(unsigned char* pixels, int x, int y, const char* text,
     int scale, unsigned char red, unsigned char green, unsigned char blue)
 {
@@ -257,10 +245,11 @@ static void DrawText(unsigned char* pixels, int x, int y, const char* text,
     }
 }
 
-static void DrawControl(unsigned char* pixels, int x, int y, int width,
-    int height, bool active, const char* label)
+static void DrawSprite(SDL_Renderer* renderer, SDL_Texture* texture,
+    int source_x, int source_y, int source_width, int source_height,
+    int destination_x, int destination_y, int destination_width,
+    int destination_height)
 {
-    unsigned char shade = active ? 0xc0 : 0x35;
     SDL_FRect source = { (float)source_x, (float)source_y,
         (float)source_width, (float)source_height };
     SDL_FRect destination = { (float)destination_x, (float)destination_y,
