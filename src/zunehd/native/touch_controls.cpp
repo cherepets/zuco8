@@ -21,6 +21,8 @@ enum
     X_Y = 290,
     DPAD_CELL_SIZE = 19,
     DPAD_DRAW_SIZE = 129,
+    DPAD_CORNER_SIZE = 34,
+    DPAD_INNER_EDGE = DPAD_DRAW_SIZE - DPAD_CORNER_SIZE,
     BUTTON_CELL_SIZE = 14,
     BUTTON_DRAW_SIZE = 96,
     MAX_TOUCHES = 4,
@@ -37,7 +39,6 @@ enum
 static SDL_Texture* s_buttons_texture;
 static SDL_Texture* s_dpad_texture;
 static SDL_Texture* s_white_texture;
-static bool s_menu_was_pressed;
 static bool s_o_was_pressed;
 static bool s_x_was_pressed;
 static bool s_dpad_left_was_pressed;
@@ -63,21 +64,113 @@ static unsigned int ButtonMaskAt(float x, float y)
     float dpad_x = x - DPAD_X;
     float dpad_y = y - DPAD_Y;
 
-    if (dpad_x >= 31.0f && dpad_x < 98.0f && dpad_y >= 0.0f &&
-        dpad_y < 48.0f) mask |= 4;
-    if (dpad_x >= 81.0f && dpad_x < 129.0f && dpad_y >= 31.0f &&
-        dpad_y < 98.0f) mask |= 2;
-    if (dpad_x >= 31.0f && dpad_x < 98.0f && dpad_y >= 81.0f &&
-        dpad_y < 129.0f) mask |= 8;
-    if (dpad_x >= 0.0f && dpad_x < 48.0f && dpad_y >= 31.0f &&
-        dpad_y < 98.0f) mask |= 1;
+    if (dpad_x >= 0.0f && dpad_x < DPAD_DRAW_SIZE && dpad_y >= 0.0f &&
+        dpad_y < DPAD_DRAW_SIZE)
+    {
+        if (dpad_y < DPAD_CORNER_SIZE) mask |= 4;
+        if (dpad_x >= DPAD_INNER_EDGE) mask |= 2;
+        if (dpad_y >= DPAD_INNER_EDGE) mask |= 8;
+        if (dpad_x < DPAD_CORNER_SIZE) mask |= 1;
+    }
     if (x >= O_X && x < O_X + BUTTON_DRAW_SIZE && y >= O_Y &&
         y < O_Y + BUTTON_DRAW_SIZE) mask |= 16;
     if (x >= X_X && x < X_X + BUTTON_DRAW_SIZE && y >= X_Y &&
         y < X_Y + BUTTON_DRAW_SIZE) mask |= 32;
-    if (x >= MENU_X && x < MENU_X + BUTTON_DRAW_SIZE && y >= MENU_Y &&
-        y < MENU_Y + BUTTON_DRAW_SIZE) mask |= 64;
     return mask;
+}
+
+static bool PointInMenuButton(float x, float y)
+{
+    return x >= MENU_X && x < MENU_X + BUTTON_DRAW_SIZE && y >= MENU_Y &&
+        y < MENU_Y + BUTTON_DRAW_SIZE;
+}
+
+typedef struct
+{
+    Uint64 id;
+    bool active;
+    bool down_inside;
+    float last_x;
+    float last_y;
+} MenuTouch;
+
+static MenuTouch s_menu_touches[MAX_TOUCHES];
+
+// TODO: May be I overcomplicated things and it's enough to just have a bool like s_touch_started_at_menu
+static bool UpdateMenuTouch(SDL_Finger** fingers, int num_fingers,
+    int drawable_w, int drawable_h, bool* out_pressed)
+{
+    bool seen[MAX_TOUCHES] = { false };
+    bool clicked = false;
+    bool pressed = false;
+    int index;
+    int slot;
+
+    for (index = 0; index < num_fingers && index < MAX_TOUCHES; ++index)
+    {
+        float x, y;
+
+        if (!fingers[index])
+        {
+            continue;
+        }
+        x = fingers[index]->x * drawable_w;
+        y = fingers[index]->y * drawable_h;
+
+        slot = -1;
+        for (int s = 0; s < MAX_TOUCHES; ++s)
+        {
+            if (s_menu_touches[s].active && s_menu_touches[s].id ==
+                fingers[index]->id)
+            {
+                slot = s;
+                break;
+            }
+        }
+        if (slot == -1)
+        {
+            for (int s = 0; s < MAX_TOUCHES; ++s)
+            {
+                if (!s_menu_touches[s].active)
+                {
+                    slot = s;
+                    break;
+                }
+            }
+            if (slot != -1)
+            {
+                s_menu_touches[slot].active = true;
+                s_menu_touches[slot].id = fingers[index]->id;
+                s_menu_touches[slot].down_inside = PointInMenuButton(x, y);
+            }
+        }
+        if (slot != -1)
+        {
+            seen[slot] = true;
+            s_menu_touches[slot].last_x = x;
+            s_menu_touches[slot].last_y = y;
+            if (s_menu_touches[slot].down_inside && PointInMenuButton(x, y))
+            {
+                pressed = true;
+            }
+        }
+    }
+
+    for (int s = 0; s < MAX_TOUCHES; ++s)
+    {
+        if (s_menu_touches[s].active && !seen[s])
+        {
+            if (s_menu_touches[s].down_inside && PointInMenuButton(
+                s_menu_touches[s].last_x, s_menu_touches[s].last_y))
+            {
+                clicked = true;
+            }
+            s_menu_touches[s].active = false;
+        }
+    }
+
+    *out_pressed = pressed;
+    return clicked;
 }
 
 static SDL_Texture* CreateWhitePixelTexture(SDL_Renderer* renderer)
@@ -116,13 +209,13 @@ bool touch_controls_initialize(SDL_Renderer* renderer)
     return true;
 }
 
-static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask)
+static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask,
+    bool menu_clicked)
 {
     bool left_pressed = (mask & 1) != 0;
     bool right_pressed = (mask & 2) != 0;
     bool o_pressed = (mask & 16) != 0;
     bool x_pressed = (mask & 32) != 0;
-    bool menu_pressed = (mask & 64) != 0;
 
     if (s_in_menu)
     {
@@ -135,14 +228,13 @@ static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask)
             cart_browser_select_next(renderer);
         }
 
-        if ((menu_pressed && !s_menu_was_pressed) ||
-            (o_pressed && !s_o_was_pressed) ||
+        if (menu_clicked || (o_pressed && !s_o_was_pressed) ||
             (x_pressed && !s_x_was_pressed))
         {
             s_in_menu = !toggle_menu(renderer);
         }
     }
-    else if (menu_pressed && !s_menu_was_pressed)
+    else if (menu_clicked)
     {
         toggle_menu(renderer);
         s_in_menu = true;
@@ -152,7 +244,6 @@ static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask)
     s_dpad_right_was_pressed = right_pressed;
     s_o_was_pressed = o_pressed;
     s_x_was_pressed = x_pressed;
-    s_menu_was_pressed = menu_pressed;
 }
 
 static void DrawCartCoverArt(SDL_Renderer* renderer)
@@ -174,6 +265,9 @@ void touch_controls_render(SDL_Renderer* renderer)
     SDL_Finger** fingers;
     unsigned int mask = 0;
     int index;
+    int menu_finger_count = 0;
+    bool menu_pressed = false;
+    bool menu_clicked;
 
     if (!s_buttons_texture || !s_dpad_texture)
     {
@@ -193,10 +287,14 @@ void touch_controls_render(SDL_Renderer* renderer)
             mask |= ButtonMaskAt(fingers[index]->x * drawable_w,
                 fingers[index]->y * drawable_h);
         }
+        menu_finger_count = num_fingers;
     }
     touch_button_state = (uint8_t)(mask & 0x3F);
 
-    UpdateMenuInteractions(renderer, mask);
+    menu_clicked = UpdateMenuTouch(fingers, menu_finger_count, drawable_w,
+        drawable_h, &menu_pressed);
+
+    UpdateMenuInteractions(renderer, mask, menu_clicked);
 
     DrawCartCoverArt(renderer);
 
@@ -241,7 +339,7 @@ void touch_controls_render(SDL_Renderer* renderer)
             DPAD_DRAW_SIZE);
     }
     DrawSprite(renderer, s_buttons_texture,
-        (mask & 64) ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE * 2,
+        menu_pressed ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE * 2,
         BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, MENU_X, MENU_Y,
         BUTTON_DRAW_SIZE, BUTTON_DRAW_SIZE);
     DrawSprite(renderer, s_buttons_texture,
