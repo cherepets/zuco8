@@ -21,8 +21,10 @@ enum
     X_Y = 290,
     DPAD_CELL_SIZE = 19,
     DPAD_DRAW_SIZE = 129,
-    DPAD_CORNER_SIZE = 34,
-    DPAD_INNER_EDGE = DPAD_DRAW_SIZE - DPAD_CORNER_SIZE,
+    DPAD_OUTER_EDGE = 34,
+    DPAD_OUTER_FAR = DPAD_DRAW_SIZE - DPAD_OUTER_EDGE,
+    DPAD_MID_EDGE = 48,
+    DPAD_MID_FAR = DPAD_DRAW_SIZE - DPAD_MID_EDGE,
     BUTTON_CELL_SIZE = 14,
     BUTTON_DRAW_SIZE = 96,
     MAX_TOUCHES = 4,
@@ -67,10 +69,37 @@ static unsigned int ButtonMaskAt(float x, float y)
     if (dpad_x >= 0.0f && dpad_x < DPAD_DRAW_SIZE && dpad_y >= 0.0f &&
         dpad_y < DPAD_DRAW_SIZE)
     {
-        if (dpad_y < DPAD_CORNER_SIZE) mask |= 4;
-        if (dpad_x >= DPAD_INNER_EDGE) mask |= 2;
-        if (dpad_y >= DPAD_INNER_EDGE) mask |= 8;
-        if (dpad_x < DPAD_CORNER_SIZE) mask |= 1;
+        bool y_outer = dpad_y < DPAD_OUTER_EDGE || dpad_y >= DPAD_OUTER_FAR;
+        bool y_center = dpad_y >= DPAD_MID_EDGE && dpad_y < DPAD_MID_FAR;
+        bool x_outer = dpad_x < DPAD_OUTER_EDGE || dpad_x >= DPAD_OUTER_FAR;
+        bool x_center = dpad_x >= DPAD_MID_EDGE && dpad_x < DPAD_MID_FAR;
+        bool horizontal = false;
+        bool vertical = false;
+        bool diagonal = false;
+
+        if (y_outer)
+        {
+            if (x_outer) diagonal = true;
+            else vertical = true;
+        }
+        else if (!y_center)
+        {
+            if (x_center) vertical = true;
+            else horizontal = true;
+        }
+        else
+        {
+            horizontal = true;
+        }
+
+        if (horizontal || diagonal)
+        {
+            mask |= (dpad_x < DPAD_DRAW_SIZE / 2.0f) ? 1u : 2u;
+        }
+        if (vertical || diagonal)
+        {
+            mask |= (dpad_y < DPAD_DRAW_SIZE / 2.0f) ? 4u : 8u;
+        }
     }
     if (x >= O_X && x < O_X + BUTTON_DRAW_SIZE && y >= O_Y &&
         y < O_Y + BUTTON_DRAW_SIZE) mask |= 16;
