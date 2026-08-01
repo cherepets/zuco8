@@ -12,15 +12,15 @@ bool cart_browser_select_prev(SDL_Renderer* renderer);
 enum
 {
     DPAD_X = 0,
-    DPAD_Y = 324,
+    DPAD_Y = 311,
     MENU_X = 88,
     MENU_Y = 242,
     O_X = 130,
     O_Y = 384,
     X_X = 176,
     X_Y = 290,
-    DPAD_CELL_SIZE = 16,
-    DPAD_DRAW_SIZE = 108,
+    DPAD_CELL_SIZE = 19,
+    DPAD_DRAW_SIZE = 129,
     BUTTON_CELL_SIZE = 14,
     BUTTON_DRAW_SIZE = 96,
     MAX_TOUCHES = 4,
@@ -63,14 +63,14 @@ static unsigned int ButtonMaskAt(float x, float y)
     float dpad_x = x - DPAD_X;
     float dpad_y = y - DPAD_Y;
 
-    if (dpad_x >= 26.0f && dpad_x < 82.0f && dpad_y >= 0.0f &&
-        dpad_y < 40.0f) mask |= 4;
-    if (dpad_x >= 68.0f && dpad_x < 108.0f && dpad_y >= 26.0f &&
-        dpad_y < 82.0f) mask |= 2;
-    if (dpad_x >= 26.0f && dpad_x < 82.0f && dpad_y >= 68.0f &&
-        dpad_y < 108.0f) mask |= 8;
-    if (dpad_x >= 0.0f && dpad_x < 40.0f && dpad_y >= 26.0f &&
-        dpad_y < 82.0f) mask |= 1;
+    if (dpad_x >= 31.0f && dpad_x < 98.0f && dpad_y >= 0.0f &&
+        dpad_y < 48.0f) mask |= 4;
+    if (dpad_x >= 81.0f && dpad_x < 129.0f && dpad_y >= 31.0f &&
+        dpad_y < 98.0f) mask |= 2;
+    if (dpad_x >= 31.0f && dpad_x < 98.0f && dpad_y >= 81.0f &&
+        dpad_y < 129.0f) mask |= 8;
+    if (dpad_x >= 0.0f && dpad_x < 48.0f && dpad_y >= 31.0f &&
+        dpad_y < 98.0f) mask |= 1;
     if (x >= O_X && x < O_X + BUTTON_DRAW_SIZE && y >= O_Y &&
         y < O_Y + BUTTON_DRAW_SIZE) mask |= 16;
     if (x >= X_X && x < X_X + BUTTON_DRAW_SIZE && y >= X_Y &&
