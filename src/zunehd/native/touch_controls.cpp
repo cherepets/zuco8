@@ -2,9 +2,12 @@
 #include "png_texture.h"
 
 #include "../../app.h"
+#include "../../auxiliary.h"
 #include "../../core.h"
 
 bool toggle_menu(SDL_Renderer* renderer);
+bool cart_browser_select_next(SDL_Renderer* renderer);
+bool cart_browser_select_prev(SDL_Renderer* renderer);
 
 enum
 {
@@ -24,13 +27,22 @@ enum
     GAME_X = 8,
     GAME_Y = 8,
     GAME_SIZE = 256,
-    FRAME_THICKNESS = 2
+    FRAME_THICKNESS = 2,
+
+    ART_SOURCE_X = 16,
+    ART_SOURCE_Y = 24,
+    ART_SOURCE_SIZE = 128
 };
 
 static SDL_Texture* s_buttons_texture;
 static SDL_Texture* s_dpad_texture;
 static SDL_Texture* s_white_texture;
 static bool s_menu_was_pressed;
+static bool s_o_was_pressed;
+static bool s_x_was_pressed;
+static bool s_dpad_left_was_pressed;
+static bool s_dpad_right_was_pressed;
+static bool s_in_menu = true;
 
 static void DrawSprite(SDL_Renderer* renderer, SDL_Texture* texture,
     int source_x, int source_y, int source_width, int source_height,
@@ -104,6 +116,56 @@ bool touch_controls_initialize(SDL_Renderer* renderer)
     return true;
 }
 
+static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask)
+{
+    bool left_pressed = (mask & 1) != 0;
+    bool right_pressed = (mask & 2) != 0;
+    bool o_pressed = (mask & 16) != 0;
+    bool x_pressed = (mask & 32) != 0;
+    bool menu_pressed = (mask & 64) != 0;
+
+    if (s_in_menu)
+    {
+        if (left_pressed && !s_dpad_left_was_pressed)
+        {
+            cart_browser_select_prev(renderer);
+        }
+        else if (right_pressed && !s_dpad_right_was_pressed)
+        {
+            cart_browser_select_next(renderer);
+        }
+
+        if ((menu_pressed && !s_menu_was_pressed) ||
+            (o_pressed && !s_o_was_pressed) ||
+            (x_pressed && !s_x_was_pressed))
+        {
+            s_in_menu = !toggle_menu(renderer);
+        }
+    }
+    else if (menu_pressed && !s_menu_was_pressed)
+    {
+        toggle_menu(renderer);
+        s_in_menu = true;
+    }
+
+    s_dpad_left_was_pressed = left_pressed;
+    s_dpad_right_was_pressed = right_pressed;
+    s_o_was_pressed = o_pressed;
+    s_x_was_pressed = x_pressed;
+    s_menu_was_pressed = menu_pressed;
+}
+
+static void DrawCartCoverArt(SDL_Renderer* renderer)
+{
+    if (!s_in_menu || get_cart()->is_corrupt)
+    {
+        return;
+    }
+    DrawSprite(renderer, get_cart()->image, ART_SOURCE_X, ART_SOURCE_Y,
+        ART_SOURCE_SIZE, ART_SOURCE_SIZE, GAME_X, GAME_Y, GAME_SIZE,
+        GAME_SIZE);
+}
+
 void touch_controls_render(SDL_Renderer* renderer)
 {
     int drawable_w = 0;
@@ -134,11 +196,9 @@ void touch_controls_render(SDL_Renderer* renderer)
     }
     touch_button_state = (uint8_t)(mask & 0x3F);
 
-    if ((mask & 64) && !s_menu_was_pressed)
-    {
-        toggle_menu(renderer);
-    }
-    s_menu_was_pressed = (mask & 64) != 0;
+    UpdateMenuInteractions(renderer, mask);
+
+    DrawCartCoverArt(renderer);
 
     if (s_white_texture)
     {
