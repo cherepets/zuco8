@@ -449,6 +449,8 @@ static int load_cart(SDL_Renderer* renderer, const char* file_name, cart_t* cart
 {
     int width, height, bpp;
 
+    cart->is_corrupt = true;
+
     FILE* file = fopen(file_name, "rb");
     if (!file)
     {
@@ -767,6 +769,18 @@ static void select_prev_cartridge(SDL_Renderer* renderer)
     load_cart(renderer, available_carts[selection], get_cart());
 }
 
+bool cart_browser_select_next(SDL_Renderer* renderer)
+{
+    select_next_cartridge(renderer);
+    return !get_cart()->is_corrupt;
+}
+
+bool cart_browser_select_prev(SDL_Renderer* renderer)
+{
+    select_prev_cartridge(renderer);
+    return !get_cart()->is_corrupt;
+}
+
 static void render_cartridge(SDL_Renderer* renderer)
 {
     SDL_Window* window = SDL_GetRenderWindow(renderer);
@@ -948,19 +962,6 @@ bool init_core(SDL_Renderer* renderer)
         SDL_Log("No carts found in directory: %s", path);
         return false;
     }
-
-    // TEMP: let's get another one from here
-    for (int i = 1; i < num_carts; i++)
-    {
-        if (SDL_strstr(available_carts[i], "WOLFHUNT.PNG"))
-        {
-            char* preferred = available_carts[i];
-            available_carts[i] = available_carts[0];
-            available_carts[0] = preferred;
-            break;
-        }
-    }
-    // TEMP: let's get another one from here
 
     if (!load_overlay(renderer))
     {
