@@ -31,7 +31,7 @@
 
 static fix32_t seed_lo, seed_hi;
 
-static fix32_t seconds_since_start;
+fix32_t seconds_since_start;
 
 // Frame timing info provided by core.c (frame_start in ms, frame_ms target in ms).
 // These are declared in api.h and set inside core.c each frame.
@@ -1031,7 +1031,7 @@ static int pico8_palt(lua_State* L)
     {
         // Two args: col, t.
         int col = fix32_to_int(luaL_checkinteger(L, 1)) & 0x0F;
-        bool transparent = lua_toboolean(L, 2);
+        bool transparent = (lua_toboolean(L, 2) != 0);
         pico8_ram[0x5f00 + col] = (pico8_ram[0x5f00 + col] & 0xEF) | (transparent ? 0x10 : 0x00);
     }
 
@@ -1266,8 +1266,8 @@ static int pico8_spr(lua_State* L)
     int32_t y = fix32_to_int32(luaL_optunsigned(L, 3, 0));
     uint8_t w = fix32_to_uint8(luaL_optunsigned(L, 4, fix32_value(1, 0)));
     uint8_t h = fix32_to_uint8(luaL_optunsigned(L, 5, fix32_value(1, 0)));
-    bool flip_x = lua_toboolean(L, 6);
-    bool flip_y = lua_toboolean(L, 7);
+    bool flip_x = (lua_toboolean(L, 6) != 0);
+    bool flip_y = (lua_toboolean(L, 7) != 0);
 
     apply_camera_offset((int*)&x, (int*)&y);
 
@@ -1291,8 +1291,8 @@ static int pico8_sspr(lua_State* L)
     int dy = fix32_to_int(luaL_checknumber(L, 6));
     int dw = fix32_to_int(luaL_optnumber(L, 7, fix32_from_int(sw)));
     int dh = fix32_to_int(luaL_optnumber(L, 8, fix32_from_int(sh)));
-    bool flip_x = lua_toboolean(L, 9);
-    bool flip_y = lua_toboolean(L, 10);
+    bool flip_x = (lua_toboolean(L, 9) != 0);
+    bool flip_y = (lua_toboolean(L, 10) != 0);
 
     apply_camera_offset((int*)&dx, (int*)&dy);
 
