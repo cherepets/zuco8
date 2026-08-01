@@ -1429,7 +1429,7 @@ bool iterate_core(SDL_Renderer* renderer)
         Uint64 frame_start = SDL_GetTicks();
         Uint32 frame_ms = has_update60 ? 1000u / 60u : 1000u / 30u;
         // Expose timing to API for stat(1) CPU usage reporting.
-        pico8_frame_start = frame_start;
+        pico8_frame_start = (uint32_t)frame_start;
         pico8_frame_ms = frame_ms;
 
         if (has_update)
