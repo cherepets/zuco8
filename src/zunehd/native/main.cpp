@@ -12,6 +12,27 @@ int main(int argc, char* argv[])
     while (result == SDL_APP_CONTINUE)
     {
         SDL_Event event;
+        bool locked = false;
+        bool guide_visible = false;
+
+        SDL_ZuneQuerySuspendState(&locked, &guide_visible);
+        if (locked || guide_visible)
+        {
+            ZDKGL_BeginDraw();
+            SDL_SetRenderDrawColor(SDL_ZuneGetRenderer(), 0x00, 0x00, 0x00,
+                0xff);
+            SDL_RenderClear(SDL_ZuneGetRenderer());
+            ZDKGL_EndDraw();
+
+            SDL_Delay(250);
+            continue;
+        }
+
+        if (SDL_ZuneQueryExitRequested()) // NEW, Check if Menu Button Pressed
+        {
+            result = SDL_APP_SUCCESS;
+            break;
+        }
 
         while (SDL_PollEvent(&event))
         {
@@ -25,6 +46,7 @@ int main(int argc, char* argv[])
         {
             break;
         }
+
         ZDKGL_BeginDraw();
         result = SDL_AppIterate(appstate);
         touch_controls_render(SDL_ZuneGetRenderer());
