@@ -555,6 +555,38 @@ SDL_Renderer* SDL_ZuneGetRenderer(void)
     return &s_renderer;
 }
 
+void SDL_ZuneQuerySuspendState(bool* locked, bool* guide_visible)
+{
+    BOOL locked_state = FALSE;
+    BOOL guide_state = FALSE;
+    bool lock_ok = SUCCEEDED(ZDKSystem_GetLockswitchState(&locked_state));
+    bool guide_ok = SUCCEEDED(ZDKSystem_IsShowingGuide(&guide_state));
+
+    if (locked)
+    {
+        *locked = lock_ok && locked_state;
+    }
+    if (guide_visible)
+    {
+        *guide_visible = guide_ok && guide_state;
+    }
+}
+
+bool SDL_ZuneQueryExitRequested(void)
+{
+    static HANDLE exit_event = 0;
+
+    if (!exit_event)
+    {
+        exit_event = OpenEvent(EVENT_ALL_ACCESS, FALSE, L"ZAM/AppExitEvent");
+        if (!exit_event)
+        {
+            return false;
+        }
+    }
+    return WaitForSingleObject(exit_event, 0) == WAIT_OBJECT_0;
+}
+
 SDL_Window* SDL_CreateWindow(const char* title, int width, int height,
     Uint32 flags)
 {
