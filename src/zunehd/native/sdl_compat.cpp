@@ -1,4 +1,5 @@
 #include "renderer_gles2.h"
+#include "SDL3/SDL_zune_ext.h"
 
 #include <stdarg.h>
 #include <stdio.h>
