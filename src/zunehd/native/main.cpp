@@ -1,4 +1,5 @@
 #include "SDL3/SDL_main.h"
+#include "SDL3/SDL_zune_ext.h"
 #include "touch_controls.h"
 #include <zdkgl.h>
 
