@@ -242,6 +242,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SDL3\SDL_zune_ext.h"
+				>
+			</File>
+			<File
 				RelativePath=".\C99\stdbool.h"
 				>
 			</File>
