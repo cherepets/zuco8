@@ -4,7 +4,8 @@
 
 **zuco8** is a Zune HD PICO-8 emulator, based on **open8**
 ([**ngagesdk/open8**](https://github.com/ngagesdk/open8)).
-It is a fork that adds compatibility layer that allows to run it on Zune HD
+
+It is a **fork** that adds compatibility layer that allows to run it on Zune HD
 and updates UI to make it more playable on the Zune HD.
 
 There is no working **SDL3** 
