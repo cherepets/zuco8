@@ -1,5 +1,3 @@
-# zuco8
-
 ![zuco8 logo](media/logo.png)
 
 ## About the Project
