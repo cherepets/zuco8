@@ -40,7 +40,9 @@ Zune HD specific code lives under
   "[WTFPL License](http://www.wtfpl.net)".
 
 - OpenZDK by itsnotabigtruck is a native SDK for Zune HD.  It is licensed under the
-  [opensource.org/licenses/bsd-license.php](http://www.opensource.org/licenses/bsd-license.php)),
+  [opensource.org/licenses/bsd-license.php](http://www.opensource.org/licenses/bsd-license.php)).
 
 - DeployKit by itsnotabigtruck is used to package and deploy Zune HD native apps.  It is licensed under the
   [MIT License](https://github.com/cherepets/zuco8/blob/zunehd/src/zunehd/package/DeployKit/LICENSE.txt).
+
+- Button design is based on assets by [Kenney](https://kenney.nl/).
