@@ -18,7 +18,7 @@ support **C99**, so there is a smaller compatibility layer for that as well.
 Zune HD specific code lives under
 ([**/src/zunehd**](https://github.com/cherepets/zuco8/tree/zunehd/src/zunehd))
 
-![zuco8 on device](media/device.png)
+[![See it in action](https://img.youtube.com/vi/OXDTfT9f6g8/maxresdefault.jpg)](https://www.youtube.com/watch?v=OXDTfT9f6g8)
 
 ## Licence and Credits
 
