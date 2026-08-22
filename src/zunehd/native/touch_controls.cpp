@@ -238,6 +238,29 @@ bool touch_controls_initialize(SDL_Renderer* renderer)
     return true;
 }
 
+void touch_controls_begin_frame(SDL_Renderer* renderer)
+{
+    int quarter_turns = 0;
+
+    if (!renderer || !renderer->initialized)
+    {
+        return;
+    }
+    switch (SDL_ZuneGetOrientation())
+    {
+        case SDL_ZUNE_ORIENTATION_LANDSCAPE:
+            quarter_turns = 1;
+            break;
+        case SDL_ZUNE_ORIENTATION_LANDSCAPE_FLIPPED:
+            quarter_turns = -1;
+            break;
+        default:
+            break;
+    }
+    renderer_gles2_set_rotation(renderer, quarter_turns,
+        GAME_X + GAME_SIZE * 0.5f, GAME_Y + GAME_SIZE * 0.5f);
+}
+
 static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask,
     bool menu_clicked)
 {
@@ -340,6 +363,8 @@ void touch_controls_render(SDL_Renderer* renderer)
         DrawSprite(renderer, s_white_texture, 0, 0, 1, 1,
             GAME_X + GAME_SIZE, GAME_Y, FRAME_THICKNESS, GAME_SIZE);
     }
+
+    renderer_gles2_set_rotation(renderer, 0, 0.0f, 0.0f);
 
     DrawSprite(renderer, s_dpad_texture, 0, 0, DPAD_CELL_SIZE,
         DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE, DPAD_DRAW_SIZE);
