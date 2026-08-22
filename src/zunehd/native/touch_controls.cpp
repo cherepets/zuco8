@@ -12,21 +12,19 @@ bool cart_browser_select_prev(SDL_Renderer* renderer);
 enum
 {
     DPAD_X = 0,
-    DPAD_Y = 311,
-    MENU_X = 88,
-    MENU_Y = 242,
-    O_X = 130,
-    O_Y = 384,
-    X_X = 176,
-    X_Y = 290,
+    DPAD_Y = 298,
+    O_X = 133,
+    O_Y = 382,
+    X_X = 174,
+    X_Y = 277,
     DPAD_CELL_SIZE = 19,
-    DPAD_DRAW_SIZE = 129,
-    DPAD_OUTER_EDGE = 34,
+    DPAD_DRAW_SIZE = 133,
+    DPAD_OUTER_EDGE = 35,
     DPAD_OUTER_FAR = DPAD_DRAW_SIZE - DPAD_OUTER_EDGE,
-    DPAD_MID_EDGE = 48,
+    DPAD_MID_EDGE = 49,
     DPAD_MID_FAR = DPAD_DRAW_SIZE - DPAD_MID_EDGE,
     BUTTON_CELL_SIZE = 14,
-    BUTTON_DRAW_SIZE = 96,
+    BUTTON_DRAW_SIZE = 98,
     MAX_TOUCHES = 4,
     GAME_X = 8,
     GAME_Y = 8,
@@ -108,10 +106,10 @@ static unsigned int ButtonMaskAt(float x, float y)
     return mask;
 }
 
-static bool PointInMenuButton(float x, float y)
+static bool PointInGameScreen(float x, float y)
 {
-    return x >= MENU_X && x < MENU_X + BUTTON_DRAW_SIZE && y >= MENU_Y &&
-        y < MENU_Y + BUTTON_DRAW_SIZE;
+    return x >= GAME_X && x < GAME_X + GAME_SIZE && y >= GAME_Y &&
+        y < GAME_Y + GAME_SIZE;
 }
 
 typedef struct
@@ -121,17 +119,15 @@ typedef struct
     bool down_inside;
     float last_x;
     float last_y;
-} MenuTouch;
+} GameScreenTouch;
 
-static MenuTouch s_menu_touches[MAX_TOUCHES];
+static GameScreenTouch s_game_screen_touches[MAX_TOUCHES];
 
-// TODO: May be I overcomplicated things and it's enough to just have a bool like s_touch_started_at_menu
-static bool UpdateMenuTouch(SDL_Finger** fingers, int num_fingers,
-    int drawable_w, int drawable_h, bool* out_pressed)
+static bool UpdateGameScreenTouch(SDL_Finger** fingers, int num_fingers,
+    int drawable_w, int drawable_h)
 {
     bool seen[MAX_TOUCHES] = { false };
     bool clicked = false;
-    bool pressed = false;
     int index;
     int slot;
 
@@ -149,7 +145,7 @@ static bool UpdateMenuTouch(SDL_Finger** fingers, int num_fingers,
         slot = -1;
         for (int s = 0; s < MAX_TOUCHES; ++s)
         {
-            if (s_menu_touches[s].active && s_menu_touches[s].id ==
+            if (s_game_screen_touches[s].active && s_game_screen_touches[s].id ==
                 fingers[index]->id)
             {
                 slot = s;
@@ -160,7 +156,7 @@ static bool UpdateMenuTouch(SDL_Finger** fingers, int num_fingers,
         {
             for (int s = 0; s < MAX_TOUCHES; ++s)
             {
-                if (!s_menu_touches[s].active)
+                if (!s_game_screen_touches[s].active)
                 {
                     slot = s;
                     break;
@@ -168,37 +164,32 @@ static bool UpdateMenuTouch(SDL_Finger** fingers, int num_fingers,
             }
             if (slot != -1)
             {
-                s_menu_touches[slot].active = true;
-                s_menu_touches[slot].id = fingers[index]->id;
-                s_menu_touches[slot].down_inside = PointInMenuButton(x, y);
+                s_game_screen_touches[slot].active = true;
+                s_game_screen_touches[slot].id = fingers[index]->id;
+                s_game_screen_touches[slot].down_inside = PointInGameScreen(x, y);
             }
         }
         if (slot != -1)
         {
             seen[slot] = true;
-            s_menu_touches[slot].last_x = x;
-            s_menu_touches[slot].last_y = y;
-            if (s_menu_touches[slot].down_inside && PointInMenuButton(x, y))
-            {
-                pressed = true;
-            }
+            s_game_screen_touches[slot].last_x = x;
+            s_game_screen_touches[slot].last_y = y;
         }
     }
 
     for (int s = 0; s < MAX_TOUCHES; ++s)
     {
-        if (s_menu_touches[s].active && !seen[s])
+        if (s_game_screen_touches[s].active && !seen[s])
         {
-            if (s_menu_touches[s].down_inside && PointInMenuButton(
-                s_menu_touches[s].last_x, s_menu_touches[s].last_y))
+            if (s_game_screen_touches[s].down_inside && PointInGameScreen(
+                s_game_screen_touches[s].last_x, s_game_screen_touches[s].last_y))
             {
                 clicked = true;
             }
-            s_menu_touches[s].active = false;
+            s_game_screen_touches[s].active = false;
         }
     }
 
-    *out_pressed = pressed;
     return clicked;
 }
 
@@ -225,7 +216,7 @@ bool touch_controls_initialize(SDL_Renderer* renderer)
 
     s_white_texture = CreateWhitePixelTexture(renderer);
     if (!LoadPngTexture(renderer, "buttons.png", BUTTON_CELL_SIZE * 2,
-        BUTTON_CELL_SIZE * 3, &s_buttons_texture) ||
+        BUTTON_CELL_SIZE * 2, &s_buttons_texture) ||
         !LoadPngTexture(renderer, "dpad.png", DPAD_CELL_SIZE * 5,
         DPAD_CELL_SIZE, &s_dpad_texture))
     {
@@ -317,8 +308,6 @@ void touch_controls_render(SDL_Renderer* renderer)
     SDL_Finger** fingers;
     unsigned int mask = 0;
     int index;
-    int menu_finger_count = 0;
-    bool menu_pressed = false;
     bool menu_clicked;
 
     if (!s_buttons_texture || !s_dpad_texture)
@@ -339,12 +328,11 @@ void touch_controls_render(SDL_Renderer* renderer)
             mask |= ButtonMaskAt(fingers[index]->x * drawable_w,
                 fingers[index]->y * drawable_h);
         }
-        menu_finger_count = num_fingers;
     }
     touch_button_state = (uint8_t)(mask & 0x3F);
 
-    menu_clicked = UpdateMenuTouch(fingers, menu_finger_count, drawable_w,
-        drawable_h, &menu_pressed);
+    menu_clicked = UpdateGameScreenTouch(fingers, num_fingers, drawable_w,
+        drawable_h);
 
     UpdateMenuInteractions(renderer, mask, menu_clicked);
 
@@ -392,10 +380,6 @@ void touch_controls_render(SDL_Renderer* renderer)
             DPAD_CELL_SIZE, DPAD_CELL_SIZE, DPAD_X, DPAD_Y, DPAD_DRAW_SIZE,
             DPAD_DRAW_SIZE);
     }
-    DrawSprite(renderer, s_buttons_texture,
-        menu_pressed ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE * 2,
-        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, MENU_X, MENU_Y,
-        BUTTON_DRAW_SIZE, BUTTON_DRAW_SIZE);
     DrawSprite(renderer, s_buttons_texture,
         (mask & 16) ? BUTTON_CELL_SIZE : 0, 0, BUTTON_CELL_SIZE,
         BUTTON_CELL_SIZE, O_X, O_Y, BUTTON_DRAW_SIZE, BUTTON_DRAW_SIZE);
