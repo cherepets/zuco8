@@ -21,9 +21,37 @@ enum
 static GLuint s_program;
 static GLuint s_vbo;
 static GLint s_texture_uniform;
+static GLint s_rotation_uniform;
+static GLint s_rotation_pivot_uniform;
 static GLfloat s_vertices[MAX_QUADS * VERTICES_PER_QUAD * FLOATS_PER_VERTEX];
 static int s_vertex_count;
 static SDL_Texture* s_current_texture;
+static int s_rotation_quarter_turns;
+static float s_rotation_pivot_x;
+static float s_rotation_pivot_y;
+static GLfloat s_rotation[3] = { 1.0f, 0.0f, 0.0f };
+static GLfloat s_pivot_ndc[2];
+
+static void UpdateRotationUniforms(const SDL_Renderer* renderer)
+{
+    static const float k_cos[4] = { 1.0f, 0.0f, -1.0f, 0.0f };
+    static const float k_sin[4] = { 0.0f, 1.0f, 0.0f, -1.0f };
+    int index = s_rotation_quarter_turns % 4;
+
+    if (index < 0)
+    {
+        index += 4;
+    }
+    s_rotation[0] = k_cos[index];
+    s_rotation[1] = k_sin[index] * renderer->logical_height /
+        renderer->logical_width;
+    s_rotation[2] = k_sin[index] * renderer->logical_width /
+        renderer->logical_height;
+    s_pivot_ndc[0] = s_rotation_pivot_x /
+        (renderer->logical_width * 0.5f) - 1.0f;
+    s_pivot_ndc[1] = 1.0f - s_rotation_pivot_y /
+        (renderer->logical_height * 0.5f);
+}
 
 static bool LoadBinaryShader(GLuint shader, const char* path)
 {
@@ -92,6 +120,9 @@ bool renderer_gles2_initialize(SDL_Renderer* renderer)
 
     glUseProgram(s_program);
     s_texture_uniform = glGetUniformLocation(s_program, "texture_sampler");
+    s_rotation_uniform = glGetUniformLocation(s_program, "rotation_transform");
+    s_rotation_pivot_uniform = glGetUniformLocation(s_program,
+        "rotation_pivot");
     glGenBuffers(1, &s_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(s_vertices), 0, GL_DYNAMIC_DRAW);
@@ -110,6 +141,9 @@ bool renderer_gles2_initialize(SDL_Renderer* renderer)
         return false;
     }
     renderer->initialized = true;
+    s_rotation_quarter_turns = 0;
+    s_rotation_pivot_x = 0.0f;
+    s_rotation_pivot_y = 0.0f;
     renderer_gles2_set_viewport(renderer, renderer->output_width,
         renderer->output_height);
     return glGetError() == GL_NO_ERROR;
@@ -164,6 +198,7 @@ void renderer_gles2_set_viewport(SDL_Renderer* renderer, int width, int height)
     renderer->viewport_height = viewport_height;
     glViewport(renderer->viewport_x, renderer->viewport_y, viewport_width,
         viewport_height);
+    UpdateRotationUniforms(renderer);
 }
 
 bool renderer_gles2_map_touch(const SDL_Renderer* renderer, float physical_x,
@@ -183,6 +218,26 @@ bool renderer_gles2_map_touch(const SDL_Renderer* renderer, float physical_x,
     *logical_y = (physical_y - renderer->viewport_y) *
         renderer->logical_height / renderer->viewport_height;
     return true;
+}
+
+void renderer_gles2_set_rotation(SDL_Renderer* renderer, int quarter_turns,
+    float pivot_x, float pivot_y)
+{
+    if (!renderer || !renderer->initialized)
+    {
+        return;
+    }
+    if (s_rotation_quarter_turns == quarter_turns &&
+        s_rotation_pivot_x == pivot_x &&
+        s_rotation_pivot_y == pivot_y)
+    {
+        return;
+    }
+    SDL_RenderPresent(renderer);
+    s_rotation_quarter_turns = quarter_turns;
+    s_rotation_pivot_x = pivot_x;
+    s_rotation_pivot_y = pivot_y;
+    UpdateRotationUniforms(renderer);
 }
 
 static void AddVertex(float x, float y, float u, float v)
@@ -263,14 +318,14 @@ bool SDL_RenderTexture(SDL_Renderer* renderer, SDL_Texture* texture,
 bool SDL_RenderPresent(SDL_Renderer* renderer)
 {
     GLenum error;
-
-    (void)renderer;
     if (s_vertex_count == 0)
     {
         return true;
     }
     glUseProgram(s_program);
     glUniform1i(s_texture_uniform, 0);
+    glUniform3fv(s_rotation_uniform, 1, s_rotation);
+    glUniform2fv(s_rotation_pivot_uniform, 1, s_pivot_ndc);
     glBindTexture(GL_TEXTURE_2D, s_current_texture->handle);
     if (s_current_texture->blend_mode == SDL_BLENDMODE_BLEND)
     {

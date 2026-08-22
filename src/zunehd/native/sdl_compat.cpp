@@ -483,6 +483,10 @@ bool SDL_EnumerateDirectory(const char* path,
 
 static bool s_touch_polled_this_frame;
 static bool s_touch_coordinates_are_physical;
+static bool s_orientation_reference_initialized;
+static int s_orientation_reference_x;
+static int s_orientation_reference_y;
+static SDL_ZuneOrientation s_orientation = SDL_ZUNE_ORIENTATION_PORTRAIT;
 
 static float NormalizeZuneCoordinate(float value, int extent)
 {
@@ -497,6 +501,49 @@ static float NormalizeZuneCoordinate(float value, int extent)
     return SDL_ZuneClampUnit(value);
 }
 
+static void UpdateOrientation(const ZDK_ACCELEROMETER_STATE* accelerometer)
+{
+    long long x;
+    long long y;
+    long long z;
+    long long in_plane_magnitude_squared;
+    long long total_magnitude_squared;
+    long long cosine;
+    long long sine;
+
+    x = accelerometer->X;
+    y = accelerometer->Y;
+    z = accelerometer->Z;
+    in_plane_magnitude_squared = x * x + y * y;
+    total_magnitude_squared = in_plane_magnitude_squared + z * z;
+    if (total_magnitude_squared <= 0 ||
+        in_plane_magnitude_squared * 25 < total_magnitude_squared)
+    {
+        return;
+    }
+    if (!s_orientation_reference_initialized)
+    {
+        s_orientation_reference_initialized = true;
+        s_orientation_reference_x = accelerometer->X;
+        s_orientation_reference_y = accelerometer->Y;
+    }
+
+    cosine = y * s_orientation_reference_y + x * s_orientation_reference_x;
+    sine = x * s_orientation_reference_y - y * s_orientation_reference_x;
+    if (sine >= 0 && sine > cosine)
+    {
+        s_orientation = SDL_ZUNE_ORIENTATION_LANDSCAPE;
+    }
+    else if (sine < 0 && -sine > cosine)
+    {
+        s_orientation = SDL_ZUNE_ORIENTATION_LANDSCAPE_FLIPPED;
+    }
+    else
+    {
+        s_orientation = SDL_ZUNE_ORIENTATION_PORTRAIT;
+    }
+}
+
 static void PollZuneTouch(void)
 {
     ZDK_INPUT_STATE input;
@@ -504,6 +551,7 @@ static void PollZuneTouch(void)
 
     memset(&input, 0, sizeof(input));
     ZDKInput_GetState(&input);
+    UpdateOrientation(&input.AccelerometerState);
     SDL_ZuneTouchBeginFrame();
 
     if (input.TouchState.Count < 0)
@@ -523,6 +571,11 @@ static void PollZuneTouch(void)
         SDL_ZuneTouchUpdate(location->Id, x, y, location->Pressure);
     }
     SDL_ZuneTouchEndFrame();
+}
+
+SDL_ZuneOrientation SDL_ZuneGetOrientation(void)
+{
+    return s_orientation;
 }
 
 bool SDL_PollEvent(SDL_Event* event)

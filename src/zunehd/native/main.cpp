@@ -49,6 +49,7 @@ int main(int argc, char* argv[])
         }
 
         ZDKGL_BeginDraw();
+        touch_controls_begin_frame(SDL_ZuneGetRenderer());
         result = SDL_AppIterate(appstate);
         touch_controls_render(SDL_ZuneGetRenderer());
         ZDKGL_EndDraw();
