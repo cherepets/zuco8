@@ -45,3 +45,5 @@ void renderer_gles2_shutdown(SDL_Renderer* renderer);
 void renderer_gles2_set_viewport(SDL_Renderer* renderer, int width, int height);
 bool renderer_gles2_map_touch(const SDL_Renderer* renderer, float physical_x,
     float physical_y, float* logical_x, float* logical_y);
+void renderer_gles2_set_rotation(SDL_Renderer* renderer, int quarter_turns,
+    float pivot_x, float pivot_y);
