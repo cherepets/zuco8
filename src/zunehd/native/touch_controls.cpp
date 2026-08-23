@@ -20,11 +20,6 @@ static const int ART_SOURCE_SIZE = 128;
 
 typedef struct
 {
-    // Game
-    int game_x;
-    int game_y;
-
-    // D-pad
     int dpad_x;
     int dpad_y;
     int dpad_draw_size;
@@ -37,20 +32,29 @@ typedef struct
     int x_x;
     int x_y;
     int button_draw_size;
+} ControlLayout;
 
-    // Touch padding
-    int touch_padding;
+typedef struct
+{
+    // Game
+    int game_x;
+    int game_y;
+
+    ControlLayout player_0;
+    ControlLayout player_1;
+    bool has_player_1_controls;
+    int dpad_touch_padding;
+    int button_touch_padding;
 } UiLayout;
 
 static const UiLayout s_portrait_layout =
 {
     // Game
     8, 8,
-    // D-pad
-    0, 298, 133, 35, 49,
-    // Buttons
-    133, 382, 174, 277, 98,
-    // Touch padding
+    { 0, 298, 133, 35, 49, 133, 382, 174, 277, 98 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    false,
+    0,
     0
 };
 
@@ -58,23 +62,21 @@ static const UiLayout s_landscape_layout =
 {
     // Game
     8, 112,
-    // D-pad
-    153, 378, 95, 25, 35,
-    // Buttons
-    190, 32, 106, 7, 70,
-    // Touch padding
-    7
+    { 172, 378, 95, 25, 35, 88, 378, 4, 403, 70 },
+    { 172, 7, 95, 25, 35, 88, 32, 4, 7, 70 },
+    true,
+    7,
+    0
 };
 
 static const UiLayout s_landscape_flipped_layout =
 {
     // Game
     8, 112,
-    // D-pad
-    24, 7, 95, 25, 35,
-    // Buttons
-    12, 378, 96, 403, 70,
-    // Touch padding
+    { 24, 7, 95, 25, 35, 12, 378, 96, 403, 70 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    false,
+    7,
     7
 };
 
@@ -118,11 +120,11 @@ static void DrawControlSprite(SDL_Renderer* renderer, SDL_Texture* texture,
         destination_height);
 }
 
-static unsigned int ButtonMaskAt(float x, float y)
+static unsigned int ButtonMaskAt(const ControlLayout* controls, float x, float y)
 {
     unsigned int mask = 0;
-    float dpad_center_x = s_layout->dpad_x + s_layout->dpad_draw_size * 0.5f;
-    float dpad_center_y = s_layout->dpad_y + s_layout->dpad_draw_size * 0.5f;
+    float dpad_center_x = controls->dpad_x + controls->dpad_draw_size * 0.5f;
+    float dpad_center_y = controls->dpad_y + controls->dpad_draw_size * 0.5f;
     float dpad_touch_x = x;
     float dpad_touch_y = y;
     float dpad_x;
@@ -134,10 +136,9 @@ static unsigned int ButtonMaskAt(float x, float y)
     bool horizontal;
     bool vertical;
     bool diagonal;
-    int dpad_outer_far = s_layout->dpad_draw_size -
-        s_layout->dpad_outer_edge;
-    int dpad_mid_far = s_layout->dpad_draw_size - s_layout->dpad_mid_edge;
-    float dpad_last_coordinate = s_layout->dpad_draw_size - 0.001f;
+    int dpad_outer_far = controls->dpad_draw_size - controls->dpad_outer_edge;
+    int dpad_mid_far = controls->dpad_draw_size - controls->dpad_mid_edge;
+    float dpad_last_coordinate = controls->dpad_draw_size - 0.001f;
 
     if (s_controls_quarter_turns == 1)
     {
@@ -153,27 +154,27 @@ static unsigned int ButtonMaskAt(float x, float y)
         dpad_touch_x = dpad_center_x + offset_y;
         dpad_touch_y = dpad_center_y - offset_x;
     }
-    dpad_x = dpad_touch_x - s_layout->dpad_x;
-    dpad_y = dpad_touch_y - s_layout->dpad_y;
+    dpad_x = dpad_touch_x - controls->dpad_x;
+    dpad_y = dpad_touch_y - controls->dpad_y;
 
-    if (dpad_x >= -s_layout->touch_padding &&
-        dpad_x < s_layout->dpad_draw_size + s_layout->touch_padding &&
-        dpad_y >= -s_layout->touch_padding &&
-        dpad_y < s_layout->dpad_draw_size + s_layout->touch_padding)
+    if (dpad_x >= -s_layout->dpad_touch_padding &&
+        dpad_x < controls->dpad_draw_size + s_layout->dpad_touch_padding &&
+        dpad_y >= -s_layout->dpad_touch_padding &&
+        dpad_y < controls->dpad_draw_size + s_layout->dpad_touch_padding)
     {
         if (dpad_x < 0.0f) dpad_x = 0.0f;
-        else if (dpad_x >= s_layout->dpad_draw_size)
+        else if (dpad_x >= controls->dpad_draw_size)
             dpad_x = dpad_last_coordinate;
         if (dpad_y < 0.0f) dpad_y = 0.0f;
-        else if (dpad_y >= s_layout->dpad_draw_size)
+        else if (dpad_y >= controls->dpad_draw_size)
             dpad_y = dpad_last_coordinate;
-        y_outer = dpad_y < s_layout->dpad_outer_edge ||
+        y_outer = dpad_y < controls->dpad_outer_edge ||
             dpad_y >= dpad_outer_far;
-        y_center = dpad_y >= s_layout->dpad_mid_edge &&
+        y_center = dpad_y >= controls->dpad_mid_edge &&
             dpad_y < dpad_mid_far;
-        x_outer = dpad_x < s_layout->dpad_outer_edge ||
+        x_outer = dpad_x < controls->dpad_outer_edge ||
             dpad_x >= dpad_outer_far;
-        x_center = dpad_x >= s_layout->dpad_mid_edge &&
+        x_center = dpad_x >= controls->dpad_mid_edge &&
             dpad_x < dpad_mid_far;
         horizontal = false;
         vertical = false;
@@ -196,22 +197,22 @@ static unsigned int ButtonMaskAt(float x, float y)
 
         if (horizontal || diagonal)
         {
-            mask |= (dpad_x < s_layout->dpad_draw_size / 2.0f) ? 1u : 2u;
+            mask |= (dpad_x < controls->dpad_draw_size / 2.0f) ? 1u : 2u;
         }
         if (vertical || diagonal)
         {
-            mask |= (dpad_y < s_layout->dpad_draw_size / 2.0f) ? 4u : 8u;
+            mask |= (dpad_y < controls->dpad_draw_size / 2.0f) ? 4u : 8u;
         }
     }
-    if (x >= s_layout->o_x - s_layout->touch_padding &&
-        x < s_layout->o_x + s_layout->button_draw_size + s_layout->touch_padding &&
-        y >= s_layout->o_y - s_layout->touch_padding &&
-        y < s_layout->o_y + s_layout->button_draw_size + s_layout->touch_padding)
+    if (x >= controls->o_x - s_layout->button_touch_padding &&
+        x < controls->o_x + controls->button_draw_size + s_layout->button_touch_padding &&
+        y >= controls->o_y - s_layout->button_touch_padding &&
+        y < controls->o_y + controls->button_draw_size + s_layout->button_touch_padding)
         mask |= 16;
-    if (x >= s_layout->x_x - s_layout->touch_padding &&
-        x < s_layout->x_x + s_layout->button_draw_size + s_layout->touch_padding &&
-        y >= s_layout->x_y - s_layout->touch_padding &&
-        y < s_layout->x_y + s_layout->button_draw_size + s_layout->touch_padding)
+    if (x >= controls->x_x - s_layout->button_touch_padding &&
+        x < controls->x_x + controls->button_draw_size + s_layout->button_touch_padding &&
+        y >= controls->x_y - s_layout->button_touch_padding &&
+        y < controls->x_y + controls->button_draw_size + s_layout->button_touch_padding)
         mask |= 32;
     return mask;
 }
@@ -422,13 +423,58 @@ static void DrawCartCoverArt(SDL_Renderer* renderer)
         GAME_SIZE, GAME_SIZE);
 }
 
+static void DrawControls(SDL_Renderer* renderer, const ControlLayout* controls,
+    unsigned int mask)
+{
+    DrawControlSprite(renderer, s_dpad_texture, 0, 0, DPAD_CELL_SIZE,
+        DPAD_CELL_SIZE, controls->dpad_x, controls->dpad_y,
+        controls->dpad_draw_size, controls->dpad_draw_size);
+    if (mask & 4)
+    {
+        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, controls->dpad_x,
+            controls->dpad_y, controls->dpad_draw_size,
+            controls->dpad_draw_size);
+    }
+    if (mask & 2)
+    {
+        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 2, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, controls->dpad_x,
+            controls->dpad_y, controls->dpad_draw_size,
+            controls->dpad_draw_size);
+    }
+    if (mask & 8)
+    {
+        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 3, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, controls->dpad_x,
+            controls->dpad_y, controls->dpad_draw_size,
+            controls->dpad_draw_size);
+    }
+    if (mask & 1)
+    {
+        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 4, 0,
+            DPAD_CELL_SIZE, DPAD_CELL_SIZE, controls->dpad_x,
+            controls->dpad_y, controls->dpad_draw_size,
+            controls->dpad_draw_size);
+    }
+    DrawControlSprite(renderer, s_buttons_texture,
+        (mask & 16) ? BUTTON_CELL_SIZE : 0, 0, BUTTON_CELL_SIZE,
+        BUTTON_CELL_SIZE, controls->o_x, controls->o_y,
+        controls->button_draw_size, controls->button_draw_size);
+    DrawControlSprite(renderer, s_buttons_texture,
+        (mask & 32) ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE,
+        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, controls->x_x, controls->x_y,
+        controls->button_draw_size, controls->button_draw_size);
+}
+
 void touch_controls_render(SDL_Renderer* renderer)
 {
     int drawable_w = 0;
     int drawable_h = 0;
     int num_fingers = 0;
     SDL_Finger** fingers;
-    unsigned int mask = 0;
+    unsigned int player_0_mask = 0;
+    unsigned int player_1_mask = 0;
     int index;
     bool menu_clicked;
 
@@ -447,16 +493,29 @@ void touch_controls_render(SDL_Renderer* renderer)
             {
                 continue;
             }
-            mask |= ButtonMaskAt(fingers[index]->x * drawable_w,
-                fingers[index]->y * drawable_h);
+            float x = fingers[index]->x * drawable_w;
+            float y = fingers[index]->y * drawable_h;
+            unsigned int mask = ButtonMaskAt(&s_layout->player_0, x, y);
+
+            if (mask != 0)
+            {
+                player_0_mask |= mask;
+            }
+            else if (s_layout->has_player_1_controls)
+            {
+                player_1_mask |= ButtonMaskAt(&s_layout->player_1, x, y);
+            }
         }
     }
-    touch_button_state = (uint8_t)(mask & 0x3F);
+    touch_button_state_player_0 = (uint8_t)(player_0_mask & 0x3F);
+    touch_button_state_player_1 = s_in_menu ? 0 :
+        (uint8_t)(player_1_mask & 0x3F);
 
     menu_clicked = UpdateGameScreenTouch(fingers, num_fingers, drawable_w,
         drawable_h);
 
-    UpdateMenuInteractions(renderer, mask, menu_clicked);
+    UpdateMenuInteractions(renderer, player_0_mask | player_1_mask,
+        menu_clicked);
 
     DrawCartCoverArt(renderer);
 
@@ -480,45 +539,11 @@ void touch_controls_render(SDL_Renderer* renderer)
 
     renderer_gles2_set_rotation(renderer, 0, 0.0f, 0.0f);
 
-    DrawControlSprite(renderer, s_dpad_texture, 0, 0, DPAD_CELL_SIZE,
-        DPAD_CELL_SIZE, s_layout->dpad_x, s_layout->dpad_y,
-        s_layout->dpad_draw_size, s_layout->dpad_draw_size);
-    if (mask & 4)
+    DrawControls(renderer, &s_layout->player_0, player_0_mask);
+    if (s_layout->has_player_1_controls)
     {
-        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE, 0,
-            DPAD_CELL_SIZE, DPAD_CELL_SIZE, s_layout->dpad_x,
-            s_layout->dpad_y, s_layout->dpad_draw_size,
-            s_layout->dpad_draw_size);
+        DrawControls(renderer, &s_layout->player_1, player_1_mask);
     }
-    if (mask & 2)
-    {
-        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 2, 0,
-            DPAD_CELL_SIZE, DPAD_CELL_SIZE, s_layout->dpad_x,
-            s_layout->dpad_y, s_layout->dpad_draw_size,
-            s_layout->dpad_draw_size);
-    }
-    if (mask & 8)
-    {
-        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 3, 0,
-            DPAD_CELL_SIZE, DPAD_CELL_SIZE, s_layout->dpad_x,
-            s_layout->dpad_y, s_layout->dpad_draw_size,
-            s_layout->dpad_draw_size);
-    }
-    if (mask & 1)
-    {
-        DrawControlSprite(renderer, s_dpad_texture, DPAD_CELL_SIZE * 4, 0,
-            DPAD_CELL_SIZE, DPAD_CELL_SIZE, s_layout->dpad_x,
-            s_layout->dpad_y, s_layout->dpad_draw_size,
-            s_layout->dpad_draw_size);
-    }
-    DrawControlSprite(renderer, s_buttons_texture,
-        (mask & 16) ? BUTTON_CELL_SIZE : 0, 0, BUTTON_CELL_SIZE,
-        BUTTON_CELL_SIZE, s_layout->o_x, s_layout->o_y,
-        s_layout->button_draw_size, s_layout->button_draw_size);
-    DrawControlSprite(renderer, s_buttons_texture,
-        (mask & 32) ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE,
-        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, s_layout->x_x, s_layout->x_y,
-        s_layout->button_draw_size, s_layout->button_draw_size);
     SDL_RenderPresent(renderer);
 }
 
