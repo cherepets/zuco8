@@ -1,9 +1,12 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef unsigned int Uint32;
 typedef unsigned long long Uint64;
+typedef int Sint32;
 typedef unsigned int SDL_AudioDeviceID;
 typedef struct SDL_Window SDL_Window;
 typedef struct SDL_Renderer SDL_Renderer;
@@ -12,6 +15,8 @@ typedef struct SDL_Texture SDL_Texture;
 typedef struct SDL_Gamepad SDL_Gamepad;
 typedef unsigned int SDL_PixelFormat;
 typedef void* SDL_PropertiesID;
+typedef Uint32 SDL_JoystickID;
+typedef int SDL_Keycode;
 typedef enum SDL_EnumerationResult
 {
     SDL_ENUM_CONTINUE,
@@ -56,10 +61,41 @@ typedef struct SDL_TouchFingerEvent
     float dy;
     float pressure;
 } SDL_TouchFingerEvent;
+typedef struct SDL_KeyboardEvent
+{
+    Uint32 type;
+    bool repeat;
+    SDL_Keycode key;
+} SDL_KeyboardEvent;
+typedef struct SDL_MouseButtonEvent
+{
+    Uint32 type;
+    int button;
+    float x;
+    float y;
+} SDL_MouseButtonEvent;
+typedef struct SDL_GamepadDeviceEvent
+{
+    Uint32 type;
+    SDL_JoystickID which;
+} SDL_GamepadDeviceEvent;
+typedef struct SDL_GamepadButtonEvent
+{
+    Uint32 type;
+    SDL_JoystickID which;
+    int button;
+} SDL_GamepadButtonEvent;
 struct SDL_Event
 {
     Uint32 type;
-    SDL_TouchFingerEvent tfinger;
+    union
+    {
+        SDL_TouchFingerEvent tfinger;
+        SDL_KeyboardEvent key;
+        SDL_MouseButtonEvent button;
+        SDL_GamepadDeviceEvent gdevice;
+        SDL_GamepadButtonEvent gbutton;
+    };
 };
 typedef struct SDL_AudioSpec
 {
@@ -94,9 +130,60 @@ typedef enum SDL_AppResult
 #define SDL_BLENDMODE_BLEND 1
 #define SDL_BYTESPERPIXEL(format) 4
 #define SDL_ISPIXELFORMAT_PACKED(format) 1
+#define SDL_NS_PER_US 1000ull
+#define SDL_SCANCODE_5 34
+#define SDL_SCANCODE_7 36
+#define SDL_SCANCODE_C 6
+#define SDL_SCANCODE_DOWN 81
+#define SDL_SCANCODE_KP_5 93
+#define SDL_SCANCODE_KP_7 95
+#define SDL_SCANCODE_LEFT 80
+#define SDL_SCANCODE_RIGHT 79
+#define SDL_SCANCODE_UP 82
+#define SDL_SCANCODE_V 25
+#define SDL_SCANCODE_X 27
+#define SDL_SCANCODE_Y 28
+#define SDL_SCANCODE_Z 29
+#define SDL_GAMEPAD_BUTTON_DPAD_DOWN 12
+#define SDL_GAMEPAD_BUTTON_DPAD_LEFT 13
+#define SDL_GAMEPAD_BUTTON_DPAD_RIGHT 14
+#define SDL_GAMEPAD_BUTTON_DPAD_UP 15
+#define SDL_GAMEPAD_BUTTON_EAST 1
+#define SDL_GAMEPAD_BUTTON_SOUTH 0
 #define SDL_EVENT_FINGER_DOWN 0x700u
 #define SDL_EVENT_FINGER_UP 0x701u
 #define SDL_EVENT_FINGER_MOTION 0x702u
+#define SDL_EVENT_QUIT 0x100u
+#define SDL_EVENT_WINDOW_RESIZED 0x200u
+#define SDL_EVENT_KEY_DOWN 0x300u
+#define SDL_EVENT_MOUSE_BUTTON_DOWN 0x401u
+#define SDL_EVENT_MOUSE_BUTTON_UP 0x402u
+#define SDL_EVENT_GAMEPAD_BUTTON_DOWN 0x650u
+#define SDL_EVENT_GAMEPAD_ADDED 0x653u
+#define SDL_EVENT_GAMEPAD_REMOVED 0x654u
+#define SDL_BUTTON_LEFT 1
+#define SDL_GAMEPAD_BUTTON_BACK 4
+#define SDL_GAMEPAD_BUTTON_START 6
+#define SDLK_SOFTLEFT 1
+#define SDLK_ESCAPE 2
+#define SDLK_C 3
+#define SDLK_X 4
+#define SDLK_Z 5
+#define SDLK_SELECT 6
+#define SDLK_SPACE 7
+#define SDLK_LEFT 8
+#define SDLK_RIGHT 9
+#define SDLK_EQUALS 10
+#define SDL_PRIu32 "u"
+#define SDL_arraysize(array) (sizeof(array) / sizeof((array)[0]))
+#define SDL_malloc malloc
+#define SDL_calloc calloc
+#define SDL_realloc realloc
+#define SDL_strstr strstr
+#define SDL_memcmp memcmp
+#define SDL_memcpy memcpy
+#define SDL_memset memset
+#define SDL_strtod strtod
 
 bool SDL_SetHint(const char* name, const char* value);
 void SDL_SetLogPriorities(int priority);
@@ -105,6 +192,10 @@ bool SDL_SetAppMetadataProperty(const char* name, const char* value);
 bool SDL_Init(Uint32 flags);
 bool SDL_InitSubSystem(Uint32 flags);
 void SDL_Quit(void);
+Uint64 SDL_GetTicks(void);
+Uint64 SDL_GetPerformanceCounter(void);
+void SDL_DelayNS(Uint64 nanoseconds);
+void SDL_Delay(Uint32 milliseconds);
 char* SDL_GetBasePath(void);
 bool SDL_EnumerateDirectory(const char* path,
     SDL_EnumerateDirectoryCallback callback, void* userdata);
@@ -139,6 +230,10 @@ SDL_Finger** SDL_GetTouchFingers(Uint64 touch_id, int* count);
 const bool* SDL_GetKeyboardState(int* count);
 SDL_Gamepad* SDL_GetGamepadFromPlayerIndex(int player_index);
 bool SDL_GetGamepadButton(SDL_Gamepad* gamepad, int button);
+SDL_Gamepad* SDL_OpenGamepad(SDL_JoystickID id);
+SDL_Gamepad* SDL_GetGamepadFromID(SDL_JoystickID id);
+void SDL_CloseGamepad(SDL_Gamepad* gamepad);
+const char* SDL_GetGamepadName(SDL_Gamepad* gamepad);
 
 void SDL_ZuneTouchBeginFrame(void);
 void SDL_ZuneTouchUpdate(Uint64 finger_id, float x, float y, float pressure);
@@ -146,3 +241,5 @@ void SDL_ZuneTouchEndFrame(void);
 void SDL_ZuneTouchReset(void);
 float SDL_ZuneClampUnit(float value);
 bool SDL_ZuneSetWorkingDirectoryFromModule(void);
+void SDL_ZuneTouchPollReset(void);
+SDL_Renderer* SDL_ZuneGetRenderer(void);
