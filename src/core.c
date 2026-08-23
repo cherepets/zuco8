@@ -165,6 +165,11 @@ static void update_touch_input(SDL_Renderer* renderer)
         {
             if (point_in_touch_region(region_x, region_y, &regions[r]))
             {
+                if (regions[r].bit == 99)
+                {
+                    state = STATE_MENU;
+                    continue;
+                }
                 touch_button_state_player_0 |= (1 << regions[r].bit);
             }
         }
@@ -514,7 +519,7 @@ static int load_cart(SDL_Renderer* renderer, const char* file_name, cart_t* cart
     uint32_t header = *(uint32_t*)&cart->cart_data[0x4300];
     int status = 0;
 
-    cart->code = SDL_calloc(MAX_CODE_SIZE, sizeof(uint8_t));
+    cart->code = (uint8_t*)SDL_calloc(MAX_CODE_SIZE, sizeof(uint8_t));
     if (!cart->code)
     {
         SDL_Log("Could not allocate code memory: %s", SDL_GetError());
@@ -550,7 +555,7 @@ static int load_cart(SDL_Renderer* renderer, const char* file_name, cart_t* cart
     }
 
     // Release the allocated memory we don't need.
-    cart->code = SDL_realloc(cart->code, cart->code_size);
+    cart->code = (uint8_t*)SDL_realloc(cart->code, cart->code_size);
     if (!cart->code)
     {
         SDL_Log("Could not re-allocate code memory: %s", SDL_GetError());
@@ -722,6 +727,22 @@ static bool run_cartridge(SDL_Renderer* renderer)
     return true;
 }
 
+bool toggle_menu(SDL_Renderer* renderer)
+{
+    if (state == STATE_MENU)
+    {
+        return run_cartridge(renderer);
+    }
+
+    destroy_vm();
+    reset_memory();
+    state = STATE_MENU;
+    has_draw = false;
+    has_update = false;
+    has_update60 = false;
+    return true;
+}
+
 static void select_next_cartridge(SDL_Renderer* renderer)
 {
     destroy_cart(get_cart());
@@ -751,7 +772,11 @@ static void render_cartridge(SDL_Renderer* renderer)
     SDL_Window* window = SDL_GetRenderWindow(renderer);
     int w, h;
 
+#if defined(_WIN32_WCE)
+    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xff);
+#else
     SDL_SetRenderDrawColor(renderer, 0x2d, 0x23, 0x42, 0xff);
+#endif
     SDL_RenderClear(renderer);
 
     if (!SDL_GetWindowSize(window, &w, &h))
@@ -759,6 +784,7 @@ static void render_cartridge(SDL_Renderer* renderer)
         SDL_Log("Unable to get window size: %s", SDL_GetError());
     }
 
+#if !defined(_WIN32_WCE)
     SDL_FRect dest = { 0 };
 
     dest.x = 0;
@@ -771,6 +797,9 @@ static void render_cartridge(SDL_Renderer* renderer)
     {
         SDL_RenderTexture(renderer, overlay, NULL, &cart_rect);
     }
+#else
+    (void)cart_rect;
+#endif
 }
 
 void handle_resize(SDL_Renderer* renderer) {
@@ -811,7 +840,7 @@ static SDL_EnumerationResult dir_callback(void* userdata, const char* dirname, c
 {
     if (SDL_strstr(fname, ".PNG") || (SDL_strstr(fname, ".png")))
     {
-        available_carts = SDL_realloc(available_carts, (num_carts + 1) * sizeof(char*));
+        available_carts = (char**)SDL_realloc(available_carts, (num_carts + 1) * sizeof(char*));
         SDL_asprintf(&available_carts[num_carts], "%s%s", dirname, fname);
         num_carts++;
     }
@@ -919,6 +948,19 @@ bool init_core(SDL_Renderer* renderer)
         SDL_Log("No carts found in directory: %s", path);
         return false;
     }
+
+    // TEMP: let's get another one from here
+    for (int i = 1; i < num_carts; i++)
+    {
+        if (SDL_strstr(available_carts[i], "WOLFHUNT.PNG"))
+        {
+            char* preferred = available_carts[i];
+            available_carts[i] = available_carts[0];
+            available_carts[0] = preferred;
+            break;
+        }
+    }
+    // TEMP: let's get another one from here
 
     if (!load_overlay(renderer))
     {
@@ -1144,6 +1186,7 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
                     }
                 }
             }
+#if !defined(_WIN32_WCE)
             else if (state == STATE_EMULATOR && screen_rect.w > 0)
             {
                 // Fallback event-based touch handling for emulator mode
@@ -1182,22 +1225,23 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
                     {
                         if (point_in_touch_region(region_x, region_y, &regions[i]))
                         {
-                            touch_button_state_player_0 |= (1 << regions[i].bit);
-
                             uint8_t bit = regions[i].bit;
                             if (bit == 99)
                             {
                                 state = STATE_MENU;
                                 continue;
                             }
+                            touch_button_state_player_0 |= (1 << bit);
                         }
                     }
                 }
             }
+#endif
             break;
         }
         case SDL_EVENT_FINGER_UP:
         {
+#if !defined(_WIN32_WCE)
             if (state == STATE_EMULATOR && screen_rect.w > 0)
             {
                 // Fallback event-based touch handling for emulator mode
@@ -1236,11 +1280,17 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
                     {
                         if (point_in_touch_region(region_x, region_y, &regions[i]))
                         {
-                            touch_button_state_player_0 &= ~(1 << regions[i].bit);
+                            uint8_t bit = regions[i].bit;
+                            if (bit == 99)
+                            {
+                                continue;
+                            }
+                            touch_button_state_player_0 &= ~(1 << bit);
                         }
                     }
                 }
             }
+#endif
             break;
         }
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -1335,14 +1385,13 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
                     {
                         if (point_in_touch_region(region_x, region_y, &regions[i]))
                         {
-                            touch_button_state_player_0 |= (1 << regions[i].bit);
-
                             uint8_t bit = regions[i].bit;
                             if (bit == 99)
                             {
                                 state = STATE_MENU;
                                 continue;
                             }
+                            touch_button_state_player_0 |= (1 << bit);
                             break;
                         }
                     }
@@ -1385,13 +1434,17 @@ bool iterate_core(SDL_Renderer* renderer)
         if (has_update)
         {
             update_input(renderer);
+#if !defined(_WIN32_WCE)
             update_touch_input(renderer);
+#endif
             call_pico8_function(vm, "_update");
         }
         else if (has_update60)
         {
             update_input(renderer);
+#if !defined(_WIN32_WCE)
             update_touch_input(renderer);
+#endif
             call_pico8_function(vm, "_update60");
         }
 
