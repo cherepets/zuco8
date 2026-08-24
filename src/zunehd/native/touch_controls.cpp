@@ -397,7 +397,11 @@ static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask,
         if (menu_clicked || (o_pressed && !s_o_was_pressed) ||
             (x_pressed && !s_x_was_pressed))
         {
-            s_in_menu = !toggle_menu(renderer);
+            if (!get_cart()->is_corrupt)
+            {
+                toggle_menu(renderer);
+                s_in_menu = false;
+            }
         }
     }
     else if (menu_clicked)
