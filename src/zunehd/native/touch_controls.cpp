@@ -306,7 +306,7 @@ static bool UpdateGameScreenTouch(SDL_Finger** fingers, int num_fingers,
 
 static SDL_Texture* CreateWhitePixelTexture(SDL_Renderer* renderer)
 {
-    unsigned char white_pixel[4] = { 0xff, 0xff, 0xff, 0xff };
+    unsigned char white_pixel[4] = { 0xff, 0xf1, 0xe8, 0xff };
     SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
         SDL_TEXTUREACCESS_STATIC, 1, 1);
 
