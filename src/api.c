@@ -21,6 +21,10 @@
 #include "memory.h"
 #include "p8scii.h"
 
+#ifdef _WIN32_WCE
+#include "zunehd/native/cartdata.h"
+#endif
+
 #define TO_BE_DONE \
     static bool warning_printed = false; \
     if (!warning_printed) { \
@@ -461,17 +465,59 @@ static int pico8_sfx(lua_State* L)
 
 static int pico8_cartdata(lua_State* L)
 {
+#ifdef _WIN32_WCE
+    const char* id = luaL_checkstring(L, 1);
+
+    lua_pushboolean(L, cartdata_select(id, pico8_ram + 0x5e00));
+    return 1;
+#else
     TO_BE_DONE;
+#endif
 }
 
 static int pico8_dget(lua_State* L)
 {
+#ifdef _WIN32_WCE
+    int index = fix32_to_int(luaL_checkinteger(L, 1));
+    uint32_t value;
+    fix32_t fixed_value;
+
+    if (index < 0 || index >= 64)
+    {
+        return luaL_error(L, "dget index out of range");
+    }
+    value = (uint32_t)pico8_ram[0x5e00 + index * 4] |
+        ((uint32_t)pico8_ram[0x5e01 + index * 4] << 8) |
+        ((uint32_t)pico8_ram[0x5e02 + index * 4] << 16) |
+        ((uint32_t)pico8_ram[0x5e03 + index * 4] << 24);
+    SDL_memcpy(&fixed_value, &value, sizeof(fixed_value));
+    lua_pushnumber(L, fixed_value);
+    return 1;
+#else
     TO_BE_DONE;
+#endif
 }
 
 static int pico8_dset(lua_State* L)
 {
+#ifdef _WIN32_WCE
+    int index = fix32_to_int(luaL_checkinteger(L, 1));
+    fix32_t fixed_value = luaL_checknumber(L, 2);
+    uint32_t value;
+
+    if (index < 0 || index >= 64)
+    {
+        return luaL_error(L, "dset index out of range");
+    }
+    SDL_memcpy(&value, &fixed_value, sizeof(value));
+    pico8_ram[0x5e00 + index * 4] = (uint8_t)value;
+    pico8_ram[0x5e01 + index * 4] = (uint8_t)(value >> 8);
+    pico8_ram[0x5e02 + index * 4] = (uint8_t)(value >> 16);
+    pico8_ram[0x5e03 + index * 4] = (uint8_t)(value >> 24);
+    return 0;
+#else
     TO_BE_DONE;
+#endif
 }
 
 // Co-Routine functions.

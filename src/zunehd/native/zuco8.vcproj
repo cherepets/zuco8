@@ -258,6 +258,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\cartdata.h"
+				>
+			</File>
+			<File
 				RelativePath=".\renderer_gles2.h"
 				>
 			</File>
@@ -372,6 +376,10 @@
 						ObjectFile="$(IntDir)\open8_main.obj"
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\cartdata.cpp"
+				>
 			</File>
 			<File
 				RelativePath=".\renderer_gles2.cpp"
