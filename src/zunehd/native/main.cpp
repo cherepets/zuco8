@@ -1,5 +1,6 @@
 #include "SDL3/SDL_main.h"
 #include "SDL3/SDL_zune_ext.h"
+#include "cartdata.h"
 #include "touch_controls.h"
 #include <zdkgl.h>
 
@@ -7,6 +8,7 @@ int main(int argc, char* argv[])
 {
     void* appstate = 0;
     SDL_AppResult result = SDL_AppInit(&appstate, argc, argv);
+    bool was_suspended = false;
 
     touch_controls_initialize(SDL_ZuneGetRenderer());
 
@@ -19,6 +21,11 @@ int main(int argc, char* argv[])
         SDL_ZuneQuerySuspendState(&locked, &guide_visible);
         if (locked || guide_visible)
         {
+            if (!was_suspended)
+            {
+                cartdata_flush();
+                was_suspended = true;
+            }
             ZDKGL_BeginDraw();
             SDL_SetRenderDrawColor(SDL_ZuneGetRenderer(), 0x00, 0x00, 0x00,
                 0xff);
@@ -28,6 +35,7 @@ int main(int argc, char* argv[])
             SDL_Delay(250);
             continue;
         }
+        was_suspended = false;
 
         if (SDL_ZuneQueryExitRequested()) // NEW, Check if Menu Button Pressed
         {

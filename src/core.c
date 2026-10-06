@@ -21,6 +21,10 @@
 #include "core.h"
 #include "memory.h"
 
+#ifdef _WIN32_WCE
+#include "zunehd/native/cartdata.h"
+#endif
+
 #define STBI_ONLY_PNG
 #define STBI_NO_THREAD_LOCALS
 #define STB_IMAGE_IMPLEMENTATION
@@ -201,6 +205,9 @@ static bool init_vm(SDL_Renderer* renderer)
 
 static void destroy_vm(void)
 {
+#ifdef _WIN32_WCE
+    cartdata_flush();
+#endif
     if (vm)
     {
         lua_close(vm);
@@ -696,6 +703,9 @@ static bool run_cartridge(SDL_Renderer* renderer)
     }
 
     reset_memory();
+#ifdef _WIN32_WCE
+    cartdata_reset();
+#endif
 
     // Copy spritesheet, map, flags, music and sound effects data to memory.
     // 0x0000-0x42ff
@@ -773,6 +783,9 @@ bool toggle_menu(SDL_Renderer* renderer)
 
     destroy_vm();
     reset_memory();
+#ifdef _WIN32_WCE
+    cartdata_reset();
+#endif
     state = STATE_MENU;
     has_draw = false;
     has_update = false;
@@ -1116,6 +1129,9 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
                     case SDLK_ESCAPE:
                         destroy_vm();
                         reset_memory();
+#ifdef _WIN32_WCE
+                        cartdata_reset();
+#endif
                         state = STATE_MENU;
                         has_draw = false;
                         has_update = false;
@@ -1155,6 +1171,9 @@ bool handle_events(SDL_Renderer* renderer, SDL_Event* event)
                     case SDL_GAMEPAD_BUTTON_START:
                         destroy_vm();
                         reset_memory();
+#ifdef _WIN32_WCE
+                        cartdata_reset();
+#endif
                         state = STATE_MENU;
                         has_draw = false;
                         has_update = false;
