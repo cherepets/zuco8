@@ -1141,9 +1141,46 @@ static int print_scroll_newline(int y)
     return y - rows;
 }
 
+static int print_hex(int c)
+{
+    if (c >= '0' && c <= '9')
+    {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'z')
+    {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'Z')
+    {
+        return c - 'A' + 10;
+    }
+    return c;
+}
+
+static int print_arg(const char* text, int len, int* i)
+{
+    if (*i + 1 >= len)
+    {
+        return -1;
+    }
+    *i += 1;
+    return (unsigned char)text[*i];
+}
+
+static int print_hex4(const char* text, int at)
+{
+    return ((print_hex((unsigned char)text[at]) & 0x0F) << 12) |
+           ((print_hex((unsigned char)text[at + 1]) & 0x0F) << 8) |
+           ((print_hex((unsigned char)text[at + 2]) & 0x0F) << 4) |
+           (print_hex((unsigned char)text[at + 3]) & 0x0F);
+}
+
 static int pico8_print(lua_State* L)
 {
-    const char* text = luaL_checkstring(L, 1);
+    size_t text_len;
+    const char* text = luaL_checklstring(L, 1, &text_len);
+    int len = (int)text_len;
     int argc = lua_gettop(L);
     int x = pico8_ram[0x5f26];
     int y = pico8_ram[0x5f27];
@@ -1156,6 +1193,21 @@ static int pico8_print(lua_State* L)
     bool add_newline = (flags & 0x04) == 0;
     bool wrap = (flags & 0x80) != 0;
     bool do_scroll;
+
+    uint8_t attrs = pico8_ram[0x5f58];
+    bool use_defaults = (attrs & 0x01) != 0;
+    p8scii_style_t style;
+    int fg;
+    int bg = 0;
+    bool solid_bg = use_defaults && (attrs & 0x10);
+    bool border = use_defaults ? (attrs & 0x02) != 0 : true;
+    int char_w = pico8_ram[0x5f59] & 0x0F;
+    int char_h = pico8_ram[0x5f59] >> 4;
+    int char_w2 = pico8_ram[0x5f5a] & 0x0F;
+    int tab_width = pico8_ram[0x5f5a] >> 4;
+    int wrap_boundary = 128;
+    int home_x, home_y;
+    int pending_repeat = 1;
 
     if (argc == 2)
     {
@@ -1186,69 +1238,464 @@ static int pico8_print(lua_State* L)
 
     do_scroll = !explicit_pos && (flags & 0x40) == 0;
     right = x;
+    home_x = x;
+    home_y = y;
+    fg = pico8_ram[0x5f25] & 0x0F;
 
-    for (i = 0; text[i] != '\0'; i++)
+    if (char_h == 0)
     {
-        unsigned char c = (unsigned char)text[i];
-        int w, advance, draw_x, draw_y;
-        uint8_t gw, gh;
+        char_h = P8SCII_LINE_HEIGHT;
+    }
+    if (tab_width == 0)
+    {
+        tab_width = P8SCII_TAB_WIDTH;
+    }
 
-        if (c == '\t') // 9, tab.
+    style.fg = 0;
+    style.bg = -1;
+    style.scale_x = (use_defaults && (attrs & 0x04)) ? 2 : 1;
+    style.scale_y = (use_defaults && (attrs & 0x08)) ? 2 : 1;
+    style.stripey = (use_defaults && (attrs & 0x40)) ? 1 : 0;
+    style.invert = (use_defaults && (attrs & 0x20)) ? 1 : 0;
+    style.outline_mask = 0;
+    style.outline_color = 0;
+    style.outline_hollow = 0;
+
+    for (i = 0; i < len; i++)
+    {
+        int c = (unsigned char)text[i];
+        int repeat = pending_repeat;
+        pending_repeat = 1;
+
+        if (c >= 16)
         {
-            x = ((x / P8SCII_TAB_WIDTH) + 1) * P8SCII_TAB_WIDTH;
+            int cell_w, advance, n;
+
+            if (c >= 128 && char_w2 > 0)
+            {
+                cell_w = char_w2;
+            }
+            else if (c < 128 && char_w > 0)
+            {
+                cell_w = char_w;
+            }
+            else
+            {
+                cell_w = p8scii_char_width((uint8_t)c) + 1;
+            }
+            advance = cell_w * style.scale_x;
+
+            for (n = 0; n < repeat; n++)
+            {
+                int draw_x, draw_y;
+
+                if (wrap && x + advance > wrap_boundary)
+                {
+                    x = margin;
+                    y += char_h * style.scale_y;
+                }
+                if (do_scroll)
+                {
+                    y = print_scroll(y, char_h * style.scale_y);
+                }
+
+                style.fg = (uint8_t)fg;
+                style.bg = solid_bg ? bg : -1;
+                draw_x = x;
+                draw_y = y;
+                apply_camera_offset(&draw_x, &draw_y);
+                p8scii_draw_char((uint8_t)c, draw_x, draw_y, cell_w, char_h, &style);
+
+                x += advance;
+                last_advance = advance;
+                if (x > right)
+                {
+                    right = x;
+                }
+            }
             continue;
         }
-        else if (c == '\n') // 10, newline.
+
+        switch (c)
         {
+        case 0: // 0, end of string.
+            add_newline = false;
+            i = len;
+            break;
+
+        case 1: // 1, repeat.
+        {
+            int a = print_arg(text, len, &i);
+            if (a >= 0)
+            {
+                pending_repeat = print_hex(a);
+            }
+            break;
+        }
+
+        case 2: // 2, background colour.
+        {
+            int a = print_arg(text, len, &i);
+            if (a >= 0)
+            {
+                bg = print_hex(a) & 0x0F;
+                solid_bg = true;
+            }
+            break;
+        }
+
+        case 3: // 3, move horizontally.
+        {
+            int a = print_arg(text, len, &i);
+            if (a >= 0)
+            {
+                x += print_hex(a) - 16;
+            }
+            break;
+        }
+
+        case 4: // 4, move vertically.
+        {
+            int a = print_arg(text, len, &i);
+            if (a >= 0)
+            {
+                y += print_hex(a) - 16;
+            }
+            break;
+        }
+
+        case 5: // 5, move horizontally and vertically.
+        {
+            int ax = print_arg(text, len, &i);
+            int ay = print_arg(text, len, &i);
+            if (ax >= 0 && ay >= 0)
+            {
+                x += print_hex(ax) - 16;
+                y += print_hex(ay) - 16;
+            }
+            break;
+        }
+
+        case 6: // 6, command prefix.
+        {
+            int cmd = print_arg(text, len, &i);
+            bool poked = false;
+
+            switch (cmd)
+            {
+            case 'c': // Clear.
+            {
+                int a = print_arg(text, len, &i);
+                if (a >= 0)
+                {
+                    int col = print_hex(a) & 0x0F;
+                    SDL_memset(&pico8_ram[0x6000], (col << 4) | col, 0x2000);
+                    x = 0;
+                    y = 0;
+                    home_x = 0;
+                    home_y = 0;
+                    margin = 0;
+                    pico8_ram[0x5f24] = 0;
+                }
+                break;
+            }
+            case 'd': // Delay.
+                print_arg(text, len, &i);
+                break;
+            case 'g': // Go to home.
+                x = home_x;
+                y = home_y;
+                break;
+            case 'h': // Set home.
+                home_x = x;
+                home_y = y;
+                break;
+            case 'j': // Jump.
+            {
+                int ax = print_arg(text, len, &i);
+                int ay = print_arg(text, len, &i);
+                if (ax >= 0 && ay >= 0)
+                {
+                    x = print_hex(ax) * 4;
+                    y = print_hex(ay) * 4;
+                }
+                break;
+            }
+            case 'r': // Wrap boundary.
+            {
+                int a = print_arg(text, len, &i);
+                if (a >= 0)
+                {
+                    wrap_boundary = print_hex(a) * 4;
+                    wrap = true;
+                }
+                break;
+            }
+            case 's': // Tab width.
+            {
+                int a = print_arg(text, len, &i);
+                if (a >= 0 && print_hex(a) > 0)
+                {
+                    tab_width = print_hex(a);
+                }
+                break;
+            }
+            case 'x': // Character width.
+            {
+                int a = print_arg(text, len, &i);
+                if (a >= 0)
+                {
+                    char_w = print_hex(a);
+                }
+                break;
+            }
+            case 'y': // Character height.
+            {
+                int a = print_arg(text, len, &i);
+                if (a >= 0 && print_hex(a) > 0)
+                {
+                    char_h = print_hex(a);
+                }
+                break;
+            }
+            case 'w':
+                style.scale_x = 2;
+                break;
+            case 't':
+                style.scale_y = 2;
+                break;
+            case '=':
+                style.stripey = 1;
+                break;
+            case 'p':
+                style.scale_x = 2;
+                style.scale_y = 2;
+                style.stripey = 1;
+                break;
+            case 'i':
+                style.invert = 1;
+                break;
+            case 'b':
+                border = !border;
+                break;
+            case '#':
+                solid_bg = true;
+                break;
+            case '-': // Switch off.
+            {
+                int a = print_arg(text, len, &i);
+                switch (a)
+                {
+                case 'w':
+                    style.scale_x = 1;
+                    break;
+                case 't':
+                    style.scale_y = 1;
+                    break;
+                case '=':
+                    style.stripey = 0;
+                    break;
+                case 'p':
+                    style.scale_x = 1;
+                    style.scale_y = 1;
+                    style.stripey = 0;
+                    break;
+                case 'i':
+                    style.invert = 0;
+                    break;
+                case 'b':
+                    border = !border;
+                    break;
+                case '#':
+                    solid_bg = false;
+                    break;
+                default:
+                    break;
+                }
+                break;
+            }
+            case '.': // Bitmap, raw.
+            case ',': // Bitmap, raw, padded.
+            case ':': // Bitmap, hex.
+            case ';': // Bitmap, hex, padded.
+            {
+                bool hex = (cmd == ':' || cmd == ';');
+                int count = hex ? 16 : 8;
+
+                if (i + count < len)
+                {
+                    uint8_t rows[8];
+                    int k;
+                    int pad = ((cmd == ',' || cmd == ';') && border) ? 1 : 0;
+                    int draw_x = x + pad;
+                    int draw_y = y + pad;
+
+                    for (k = 0; k < 8; k++)
+                    {
+                        if (hex)
+                        {
+                            rows[k] = (uint8_t)(((print_hex((unsigned char)text[i + 1 + k * 2]) & 0x0F) << 4) |
+                                                (print_hex((unsigned char)text[i + 2 + k * 2]) & 0x0F));
+                        }
+                        else
+                        {
+                            rows[k] = (uint8_t)text[i + 1 + k];
+                        }
+                    }
+                    i += count;
+                    apply_camera_offset(&draw_x, &draw_y);
+                    p8scii_draw_bitmap(draw_x, draw_y, rows, fg, solid_bg ? bg : -1);
+                    x += 8;
+                    last_advance = 8;
+                    if (x > right)
+                    {
+                        right = x;
+                    }
+                }
+                else
+                {
+                    i = len;
+                }
+                break;
+            }
+            case '@': // Poke count bytes.
+                if (i + 8 < len)
+                {
+                    int addr = print_hex4(text, i + 1);
+                    int count = print_hex4(text, i + 5);
+                    int k;
+
+                    i += 8;
+                    for (k = 0; k < count && i + 1 < len; k++)
+                    {
+                        i++;
+                        if (addr + k < RAM_SIZE)
+                        {
+                            pico8_ram[addr + k] = (uint8_t)text[i];
+                        }
+                    }
+                    poked = true;
+                }
+                else
+                {
+                    i = len;
+                }
+                break;
+            case '!': // Poke the rest.
+                if (i + 4 < len)
+                {
+                    int addr = print_hex4(text, i + 1);
+                    int k = 0;
+
+                    i += 4;
+                    while (i + 1 < len)
+                    {
+                        i++;
+                        if (addr + k < RAM_SIZE)
+                        {
+                            pico8_ram[addr + k] = (uint8_t)text[i];
+                        }
+                        k++;
+                    }
+                    poked = true;
+                }
+                else
+                {
+                    i = len;
+                }
+                break;
+            case 'o': // Outline.
+            {
+                int col = print_arg(text, len, &i);
+                int mask_hi = print_arg(text, len, &i);
+                int mask_lo = print_arg(text, len, &i);
+                if (col >= 0 && mask_hi >= 0 && mask_lo >= 0)
+                {
+                    style.outline_mask = (uint8_t)(((print_hex(mask_hi) & 0x0F) << 4) | (print_hex(mask_lo) & 0x0F));
+                    style.outline_hollow = (col == '!') ? 1 : 0;
+                    style.outline_color = (uint8_t)((col == '$' || col == '!') ? fg : (print_hex(col) & 0x0F));
+                }
+                break;
+            }
+            default:
+                break;
+            }
+
+            if (poked)
+            {
+                flags = pico8_ram[0x5f36];
+                add_newline = (flags & 0x04) == 0;
+                wrap = (flags & 0x80) != 0;
+                do_scroll = !explicit_pos && (flags & 0x40) == 0;
+            }
+            break;
+        }
+
+        case 8: // 8, backspace.
+            x -= last_advance;
+            break;
+
+        case 9: // 9, tab.
+            x = ((x / tab_width) + 1) * tab_width;
+            break;
+
+        case 10: // 10, newline.
             x = margin;
-            y += P8SCII_LINE_HEIGHT;
+            y += char_h * style.scale_y;
             if (do_scroll)
             {
                 y = print_scroll_newline(y);
             }
-            continue;
-        }
-        else if (c == '\b') // 8, backspace.
+            break;
+
+        case 11: // 11, decoration.
         {
-            x -= last_advance;
-            continue;
+            int code = print_arg(text, len, &i);
+            int dec = print_arg(text, len, &i);
+            if (code >= 0 && dec >= 16 && dec < 0x7f)
+            {
+                int offset = print_hex(code);
+                int draw_x = x - last_advance + (offset % 4) - 2;
+                int draw_y = y + (offset / 4) - 8;
+                p8scii_style_t plain = style;
+
+                plain.fg = (uint8_t)fg;
+                plain.bg = -1;
+                plain.scale_x = 1;
+                plain.scale_y = 1;
+                plain.outline_mask = 0;
+                apply_camera_offset(&draw_x, &draw_y);
+                p8scii_draw_char((uint8_t)dec, draw_x, draw_y, p8scii_char_width((uint8_t)dec) + 1, char_h, &plain);
+            }
+            break;
         }
-        else if (c == '\r') // 13, carriage return.
+
+        case 12: // 12, foreground colour.
         {
+            int a = print_arg(text, len, &i);
+            if (a >= 0)
+            {
+                fg = print_hex(a) & 0x0F;
+                pico8_ram[0x5f25] = (uint8_t)fg;
+            }
+            break;
+        }
+
+        case 13: // 13, carriage return.
             x = margin;
-            continue;
-        }
+            break;
 
-        w = p8scii_char_width(c);
-        advance = w + 1;
-
-        if (wrap && x + advance > 128)
-        {
-            x = margin;
-            y += P8SCII_LINE_HEIGHT;
-        }
-        if (do_scroll)
-        {
-            y = print_scroll(y, P8SCII_LINE_HEIGHT);
-        }
-
-        draw_x = x;
-        draw_y = y;
-        apply_camera_offset(&draw_x, &draw_y);
-        blit_char_to_screen(c, draw_x, draw_y, (uint8_t)(pico8_ram[0x5f25] & 0x0F), &gw, &gh);
-
-        x += advance;
-        last_advance = advance;
-        if (x > right)
-        {
-            right = x;
+        case 14: // 14, custom font on.
+        case 15: // 15, custom font off.
+        default: // 7, audio, not supported.
+            break;
         }
     }
 
     if (add_newline)
     {
         x = margin;
-        y += P8SCII_LINE_HEIGHT;
+        y += char_h * style.scale_y;
         if (do_scroll)
         {
             y = print_scroll_newline(y);

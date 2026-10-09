@@ -332,3 +332,138 @@ void blit_char_to_screen(uint8_t char_index, int x, int y, uint8_t color, uint8_
 		}
 	}
 }
+
+static void p8scii_put(int x, int y, int color)
+{
+	if (((unsigned)x | (unsigned)y) >= 128)
+	{
+		return;
+	}
+	uint16_t addr = 0x6000 + ((uint16_t)y << 6) + ((uint16_t)x >> 1);
+	color &= 0x0F;
+	if (x & 1)
+		pico8_ram[addr] = (pico8_ram[addr] & 0x0F) | (color << 4);
+	else
+		pico8_ram[addr] = (pico8_ram[addr] & 0xF0) | color;
+}
+
+static int p8scii_lit(uint8_t char_index, int col, int row, int invert)
+{
+	const p8char_t* glyph = &font[char_index];
+	int bit = 0;
+	if (col >= 0 && row >= 0 && col < glyph->width && row < glyph->height)
+	{
+		bit = (glyph->bitmap[row] >> (glyph->width - 1 - col)) & 1;
+	}
+	return invert ? !bit : bit;
+}
+
+void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, const p8scii_style_t* style)
+{
+	static const int outline_dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+	static const int outline_dy[8] = { -1, -1, -1, 0, 0, 1, 1, 1 };
+	int sx = style->scale_x;
+	int sy = style->scale_y;
+	int row, col, dx, dy, n;
+
+	for (row = 0; row < cell_h; row++)
+	{
+		for (col = 0; col < cell_w; col++)
+		{
+			int lit = p8scii_lit(char_index, col, row, style->invert);
+
+			if (lit || style->bg < 0)
+			{
+				continue;
+			}
+			for (dy = 0; dy < sy; dy++)
+			{
+				for (dx = 0; dx < sx; dx++)
+				{
+					if (style->stripey && !((dx + dy) & 1))
+						continue;
+					p8scii_put(x + col * sx + dx, y + row * sy + dy, style->bg);
+				}
+			}
+		}
+	}
+
+	if (style->outline_mask)
+	{
+		for (row = 0; row < cell_h; row++)
+		{
+			for (col = 0; col < cell_w; col++)
+			{
+				if (!p8scii_lit(char_index, col, row, style->invert))
+				{
+					continue;
+				}
+				for (n = 0; n < 8; n++)
+				{
+					if (!(style->outline_mask & (1 << n)))
+					{
+						continue;
+					}
+					if (p8scii_lit(char_index, col + outline_dx[n], row + outline_dy[n], style->invert))
+					{
+						continue;
+					}
+					for (dy = 0; dy < sy; dy++)
+					{
+						for (dx = 0; dx < sx; dx++)
+						{
+							if (style->stripey && !((dx + dy) & 1))
+								continue;
+							p8scii_put(x + col * sx + dx + outline_dx[n], y + row * sy + dy + outline_dy[n], style->outline_color);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (style->outline_hollow)
+	{
+		return;
+	}
+
+	for (row = 0; row < cell_h; row++)
+	{
+		for (col = 0; col < cell_w; col++)
+		{
+			if (!p8scii_lit(char_index, col, row, style->invert))
+			{
+				continue;
+			}
+			for (dy = 0; dy < sy; dy++)
+			{
+				for (dx = 0; dx < sx; dx++)
+				{
+					if (style->stripey && !((dx + dy) & 1))
+						continue;
+					p8scii_put(x + col * sx + dx, y + row * sy + dy, style->fg);
+				}
+			}
+		}
+	}
+}
+
+void p8scii_draw_bitmap(int x, int y, const uint8_t* rows, int fg, int bg)
+{
+	int row, bit;
+
+	for (row = 0; row < 8; row++)
+	{
+		for (bit = 0; bit < 8; bit++)
+		{
+			if (rows[row] & (1 << bit))
+			{
+				p8scii_put(x + bit, y + row, fg);
+			}
+			else if (bg >= 0)
+			{
+				p8scii_put(x + bit, y + row, bg);
+			}
+		}
+	}
+}
