@@ -13,6 +13,10 @@
 
 #define MAX_FONT_WIDTH 7
 #define MAX_FONT_HEIGHT 5
+#define LINE_HEIGHT 6
+#define TAB_WIDTH 16
+#define CUSTOM_FONT_ADDR 0x5600
+#define CUSTOM_FONT_GLYPHS 0x5680
 
 typedef struct
 {
@@ -308,13 +312,79 @@ static void p8scii_put(int x, int y, int color)
 		pico8_ram[addr] = (pico8_ram[addr] & 0xF0) | color;
 }
 
-static int p8scii_lit(uint8_t char_index, int col, int row, int invert)
+static int p8scii_custom_adjust(uint8_t char_index)
 {
-	const p8char_t* glyph = &font[char_index];
-	int bit = 0;
-	if (col >= 0 && row >= 0 && col < glyph->width && row < glyph->height)
+	if (!(pico8_ram[CUSTOM_FONT_ADDR + 5] & 0x01) || char_index < 16)
 	{
-		bit = (glyph->bitmap[row] >> (glyph->width - 1 - col)) & 1;
+		return 0;
+	}
+	int nibble_index = char_index - 16;
+	uint8_t data = pico8_ram[CUSTOM_FONT_ADDR + 8 + nibble_index / 2];
+	return (nibble_index & 1) ? (data >> 4) : (data & 0x0F);
+}
+
+int p8scii_line_height(void)
+{
+	return LINE_HEIGHT;
+}
+
+void p8scii_font_metrics(int custom, int* char_h, int* tab_width)
+{
+	int height = LINE_HEIGHT;
+	int tab = TAB_WIDTH;
+
+	if (custom)
+	{
+		if (pico8_ram[CUSTOM_FONT_ADDR + 2] > 0)
+		{
+			height = pico8_ram[CUSTOM_FONT_ADDR + 2];
+		}
+		if (pico8_ram[CUSTOM_FONT_ADDR + 6] > 0)
+		{
+			tab = pico8_ram[CUSTOM_FONT_ADDR + 6];
+		}
+	}
+	if ((pico8_ram[0x5f59] >> 4) > 0)
+	{
+		height = pico8_ram[0x5f59] >> 4;
+	}
+	if ((pico8_ram[0x5f5a] >> 4) > 0)
+	{
+		tab = pico8_ram[0x5f5a] >> 4;
+	}
+
+	*char_h = height;
+	*tab_width = tab;
+}
+
+int p8scii_custom_char_width(uint8_t char_index)
+{
+	int width = pico8_ram[CUSTOM_FONT_ADDR + (char_index < 128 ? 0 : 1)];
+	int adjust = p8scii_custom_adjust(char_index) & 0x07;
+	if (adjust >= 4)
+	{
+		adjust -= 8;
+	}
+	return width + adjust;
+}
+
+static int p8scii_lit(uint8_t char_index, int col, int row, int invert, int custom)
+{
+	int bit = 0;
+	if (custom && char_index >= 16)
+	{
+		if (col >= 0 && row >= 0 && col < 8 && row < 8)
+		{
+			bit = (pico8_ram[CUSTOM_FONT_GLYPHS + (char_index - 16) * 8 + row] >> col) & 1;
+		}
+	}
+	else
+	{
+		const p8char_t* glyph = &font[char_index];
+		if (col >= 0 && row >= 0 && col < glyph->width && row < glyph->height)
+		{
+			bit = (glyph->bitmap[row] >> (glyph->width - 1 - col)) & 1;
+		}
 	}
 	return invert ? !bit : bit;
 }
@@ -327,11 +397,21 @@ void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, 
 	int sy = style->scale_y;
 	int row, col, dx, dy, n;
 
+	if (style->custom_font)
+	{
+		x += (int8_t)pico8_ram[CUSTOM_FONT_ADDR + 3];
+		y += (int8_t)pico8_ram[CUSTOM_FONT_ADDR + 4];
+		if (p8scii_custom_adjust(char_index) & 0x08)
+		{
+			y--;
+		}
+	}
+
 	for (row = 0; row < cell_h; row++)
 	{
 		for (col = 0; col < cell_w; col++)
 		{
-			int lit = p8scii_lit(char_index, col, row, style->invert);
+			int lit = p8scii_lit(char_index, col, row, style->invert, style->custom_font);
 
 			if (lit || style->bg < 0)
 			{
@@ -355,7 +435,7 @@ void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, 
 		{
 			for (col = 0; col < cell_w; col++)
 			{
-				if (!p8scii_lit(char_index, col, row, style->invert))
+				if (!p8scii_lit(char_index, col, row, style->invert, style->custom_font))
 				{
 					continue;
 				}
@@ -365,7 +445,7 @@ void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, 
 					{
 						continue;
 					}
-					if (p8scii_lit(char_index, col + outline_dx[n], row + outline_dy[n], style->invert))
+					if (p8scii_lit(char_index, col + outline_dx[n], row + outline_dy[n], style->invert, style->custom_font))
 					{
 						continue;
 					}
@@ -392,7 +472,7 @@ void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, 
 	{
 		for (col = 0; col < cell_w; col++)
 		{
-			if (!p8scii_lit(char_index, col, row, style->invert))
+			if (!p8scii_lit(char_index, col, row, style->invert, style->custom_font))
 			{
 				continue;
 			}

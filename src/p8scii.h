@@ -12,10 +12,10 @@
 
 #include <stdint.h>
 
-#define P8SCII_LINE_HEIGHT 6
-#define P8SCII_TAB_WIDTH 16
-
 uint8_t p8scii_char_width(uint8_t char_index);
+int p8scii_custom_char_width(uint8_t char_index);
+int p8scii_line_height(void);
+void p8scii_font_metrics(int custom, int* char_h, int* tab_width);
 typedef struct p8scii_style
 {
     uint8_t fg;
@@ -27,6 +27,7 @@ typedef struct p8scii_style
     uint8_t outline_mask;
     uint8_t outline_color;
     uint8_t outline_hollow;
+    uint8_t custom_font;
 } p8scii_style_t;
 
 void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, const p8scii_style_t* style);

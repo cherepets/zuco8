@@ -1126,16 +1126,17 @@ static int print_scroll(int y, int line_height)
 
 static int print_scroll_newline(int y)
 {
-    int threshold = 128 - P8SCII_LINE_HEIGHT;
+    int line_height = p8scii_line_height();
+    int threshold = 128 - line_height;
     int rows;
     if (y <= threshold)
     {
         return y;
     }
     rows = y - threshold;
-    if (rows < P8SCII_LINE_HEIGHT)
+    if (rows < line_height)
     {
-        rows = P8SCII_LINE_HEIGHT;
+        rows = line_height;
     }
     print_scroll_rows(rows);
     return y - rows;
@@ -1202,9 +1203,9 @@ static int pico8_print(lua_State* L)
     bool solid_bg = use_defaults && (attrs & 0x10);
     bool border = use_defaults ? (attrs & 0x02) != 0 : true;
     int char_w = pico8_ram[0x5f59] & 0x0F;
-    int char_h = pico8_ram[0x5f59] >> 4;
+    int char_h;
     int char_w2 = pico8_ram[0x5f5a] & 0x0F;
-    int tab_width = pico8_ram[0x5f5a] >> 4;
+    int tab_width;
     int wrap_boundary = 128;
     int home_x, home_y;
     int pending_repeat = 1;
@@ -1242,15 +1243,6 @@ static int pico8_print(lua_State* L)
     home_y = y;
     fg = pico8_ram[0x5f25] & 0x0F;
 
-    if (char_h == 0)
-    {
-        char_h = P8SCII_LINE_HEIGHT;
-    }
-    if (tab_width == 0)
-    {
-        tab_width = P8SCII_TAB_WIDTH;
-    }
-
     style.fg = 0;
     style.bg = -1;
     style.scale_x = (use_defaults && (attrs & 0x04)) ? 2 : 1;
@@ -1260,6 +1252,8 @@ static int pico8_print(lua_State* L)
     style.outline_mask = 0;
     style.outline_color = 0;
     style.outline_hollow = 0;
+    style.custom_font = (use_defaults && (attrs & 0x80)) ? 1 : 0;
+    p8scii_font_metrics(style.custom_font, &char_h, &tab_width);
 
     for (i = 0; i < len; i++)
     {
@@ -1271,7 +1265,15 @@ static int pico8_print(lua_State* L)
         {
             int cell_w, advance, n;
 
-            if (c >= 128 && char_w2 > 0)
+            if (style.custom_font)
+            {
+                cell_w = p8scii_custom_char_width((uint8_t)c);
+                if (cell_w < 0)
+                {
+                    cell_w = 0;
+                }
+            }
+            else if (c >= 128 && char_w2 > 0)
             {
                 cell_w = char_w2;
             }
@@ -1664,6 +1666,7 @@ static int pico8_print(lua_State* L)
                 plain.scale_x = 1;
                 plain.scale_y = 1;
                 plain.outline_mask = 0;
+                plain.custom_font = 0;
                 apply_camera_offset(&draw_x, &draw_y);
                 p8scii_draw_char((uint8_t)dec, draw_x, draw_y, p8scii_char_width((uint8_t)dec) + 1, char_h, &plain);
             }
@@ -1686,7 +1689,15 @@ static int pico8_print(lua_State* L)
             break;
 
         case 14: // 14, custom font on.
+            style.custom_font = 1;
+            p8scii_font_metrics(true, &char_h, &tab_width);
+            break;
+
         case 15: // 15, custom font off.
+            style.custom_font = 0;
+            p8scii_font_metrics(false, &char_h, &tab_width);
+            break;
+
         default: // 7, audio, not supported.
             break;
         }
