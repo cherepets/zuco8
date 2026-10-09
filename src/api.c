@@ -783,8 +783,9 @@ static int pico8_cls(lua_State* L)
     // tbd.
 
     // Reset cursor position.
-    pico8_ram[0x5f26] = 0x00;
-    pico8_ram[0x5f27] = 0x00;
+    pico8_ram[0x5f24] = 0x00; // Left margin.
+    pico8_ram[0x5f26] = 0x00; // X.
+    pico8_ram[0x5f27] = 0x00; // Y.
 
     return 0;
 }
@@ -797,6 +798,7 @@ static int pico8_color(lua_State* L)
 
 static int pico8_cursor(lua_State* L)
 {
+    pico8_ram[0x5f24] = pico8_ram[0x5f26]; // Left margin.
     pico8_ram[0x5f26] = fix32_to_uint8(luaL_checkunsigned(L, 1)); // X.
     pico8_ram[0x5f27] = fix32_to_uint8(luaL_checkunsigned(L, 2)); // Y.
 
@@ -1101,66 +1103,161 @@ static int pico8_pget(lua_State* L)
     return 1;
 }
 
+static void print_scroll_rows(int rows)
+{
+    if (rows > 128)
+    {
+        rows = 128;
+    }
+    SDL_memmove(&pico8_ram[0x6000], &pico8_ram[0x6000 + 64 * rows], 0x2000 - 64 * rows);
+    SDL_memset(&pico8_ram[0x6000 + 0x2000 - 64 * rows], 0, 64 * rows);
+}
+
+static int print_scroll(int y, int line_height)
+{
+    int rows = y - (128 - line_height);
+    if (rows <= 0)
+    {
+        return y;
+    }
+    print_scroll_rows(rows);
+    return y - rows;
+}
+
+static int print_scroll_newline(int y)
+{
+    int threshold = 128 - P8SCII_LINE_HEIGHT;
+    int rows;
+    if (y <= threshold)
+    {
+        return y;
+    }
+    rows = y - threshold;
+    if (rows < P8SCII_LINE_HEIGHT)
+    {
+        rows = P8SCII_LINE_HEIGHT;
+    }
+    print_scroll_rows(rows);
+    return y - rows;
+}
+
 static int pico8_print(lua_State* L)
 {
     const char* text = luaL_checkstring(L, 1);
     int argc = lua_gettop(L);
-    uint8_t cursor_x = pico8_ram[0x5f26];
-    uint8_t x_cursor = cursor_x;
-    uint8_t cursor_y = pico8_ram[0x5f27];
-    uint8_t color = pico8_ram[0x5f25];
+    int x = pico8_ram[0x5f26];
+    int y = pico8_ram[0x5f27];
+    int margin = pico8_ram[0x5f24];
+    int right;
+    int last_advance = 4;
+    int i;
+    bool explicit_pos = false;
+    uint8_t flags = pico8_ram[0x5f36];
+    bool add_newline = (flags & 0x04) == 0;
+    bool wrap = (flags & 0x80) != 0;
+    bool do_scroll;
 
-    // Checked independently per-argument (see pico8_circ())
-    if (argc >= 2 && !lua_isnoneornil(L, 2))
+    if (argc == 2)
     {
-        cursor_x = fix32_to_uint8(luaL_checkunsigned(L, 2));
-    }
-    if (argc >= 3 && !lua_isnoneornil(L, 3))
-    {
-        cursor_y = fix32_to_uint8(luaL_checkunsigned(L, 3));
-    }
-    if (argc >= 4 && !lua_isnoneornil(L, 4))
-    {
-        color = fix32_to_uint8(luaL_checkunsigned(L, 4));
-    }
-
-    for (int i = 0; text[i] != '\0'; i++)
-    {
-        if (text[i] == '\t') // 9, tab.
+        if (!lua_isnoneornil(L, 2))
         {
-            cursor_x += 16;
-            continue;
+            pico8_ram[0x5f25] = fix32_to_uint8(luaL_checkunsigned(L, 2));
         }
-        else if (text[i] == '\n') // 10, newline.
+    }
+    else if (argc >= 3)
+    {
+        explicit_pos = true;
+        if (!lua_isnoneornil(L, 2))
         {
-            cursor_x = 0;
-            cursor_y += 6;
-            continue;
+            x = fix32_to_uint8(luaL_checkunsigned(L, 2));
         }
-        else if (text[i] == '\b') // 8, backspace.
+        if (!lua_isnoneornil(L, 3))
         {
-            cursor_x -= 4;
-            continue;
+            y = fix32_to_uint8(luaL_checkunsigned(L, 3));
         }
-        else if (text[i] == '\r') // 13, carriage return.
+        if (argc >= 4 && !lua_isnoneornil(L, 4))
         {
-            cursor_x = 0;
-            continue;
+            pico8_ram[0x5f25] = fix32_to_uint8(luaL_checkunsigned(L, 4));
         }
 
-        uint8_t w, h;
-        int x = cursor_x, y = cursor_y;
-        apply_camera_offset((int*)&x, (int*)&y);
-
-        blit_char_to_screen((unsigned char)text[i], x, y, color, &w, &h);
-        cursor_x += w + 1;
+        margin = x;
+        pico8_ram[0x5f24] = (uint8_t)margin;
     }
 
-    cursor_y += 6;
+    do_scroll = !explicit_pos && (flags & 0x40) == 0;
+    right = x;
 
-    pico8_ram[0x5f26] = x_cursor;
-    pico8_ram[0x5f27] = cursor_y;
-    lua_pushnumber(L, cursor_x);
+    for (i = 0; text[i] != '\0'; i++)
+    {
+        unsigned char c = (unsigned char)text[i];
+        int w, advance, draw_x, draw_y;
+        uint8_t gw, gh;
+
+        if (c == '\t') // 9, tab.
+        {
+            x = ((x / P8SCII_TAB_WIDTH) + 1) * P8SCII_TAB_WIDTH;
+            continue;
+        }
+        else if (c == '\n') // 10, newline.
+        {
+            x = margin;
+            y += P8SCII_LINE_HEIGHT;
+            if (do_scroll)
+            {
+                y = print_scroll_newline(y);
+            }
+            continue;
+        }
+        else if (c == '\b') // 8, backspace.
+        {
+            x -= last_advance;
+            continue;
+        }
+        else if (c == '\r') // 13, carriage return.
+        {
+            x = margin;
+            continue;
+        }
+
+        w = p8scii_char_width(c);
+        advance = w + 1;
+
+        if (wrap && x + advance > 128)
+        {
+            x = margin;
+            y += P8SCII_LINE_HEIGHT;
+        }
+        if (do_scroll)
+        {
+            y = print_scroll(y, P8SCII_LINE_HEIGHT);
+        }
+
+        draw_x = x;
+        draw_y = y;
+        apply_camera_offset(&draw_x, &draw_y);
+        blit_char_to_screen(c, draw_x, draw_y, (uint8_t)(pico8_ram[0x5f25] & 0x0F), &gw, &gh);
+
+        x += advance;
+        last_advance = advance;
+        if (x > right)
+        {
+            right = x;
+        }
+    }
+
+    if (add_newline)
+    {
+        x = margin;
+        y += P8SCII_LINE_HEIGHT;
+        if (do_scroll)
+        {
+            y = print_scroll_newline(y);
+        }
+    }
+
+    pico8_ram[0x5f26] = (uint8_t)x;
+    pico8_ram[0x5f27] = (uint8_t)y;
+    lua_pushinteger(L, right);
 
     return 1;
 }

@@ -289,6 +289,11 @@ const p8char_t font[] =
 	{ 7, 5, { 0b0001000, 0b0000100, 0b1100011, 0b0010000, 0b0001000, } }, // ◝
 };
 
+uint8_t p8scii_char_width(uint8_t char_index)
+{
+	return font[char_index].width;
+}
+
 void blit_char_to_screen(uint8_t char_index, int x, int y, uint8_t color, uint8_t* w, uint8_t* h)
 {
 	const p8char_t* font_char = &font[char_index];
