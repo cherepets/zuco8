@@ -294,45 +294,6 @@ uint8_t p8scii_char_width(uint8_t char_index)
 	return font[char_index].width;
 }
 
-void blit_char_to_screen(uint8_t char_index, int x, int y, uint8_t color, uint8_t* w, uint8_t* h)
-{
-	const p8char_t* font_char = &font[char_index];
-	const uint8_t* char_bitmap = font_char->bitmap;
-	const int char_width = font_char->width;
-	const int char_height = font_char->height;
-
-	*w = (uint8_t)char_width;
-	*h = (uint8_t)char_height;
-
-	for (int row = 0; row < char_height; row++)
-	{
-		int screen_y = y + row;
-		if (screen_y < 0 || screen_y > 127)
-		{
-			continue;
-		}
-		uint8_t row_data = char_bitmap[row];
-		uint16_t screen_row_addr = 0x6000 + ((uint16_t)screen_y << 6);
-
-		for (int col = 0; col < char_width; col++)
-		{
-			if (row_data & (1 << (char_width - 1 - col)))
-			{
-				int screen_x = x + col;
-				if (screen_x < 0 || screen_x > 127)
-				{
-					continue;
-				}
-				uint16_t addr = screen_row_addr + ((uint16_t)screen_x >> 1);
-				if (screen_x & 1)
-					pico8_ram[addr] = (pico8_ram[addr] & 0x0F) | (color << 4);
-				else
-					pico8_ram[addr] = (pico8_ram[addr] & 0xF0) | color;
-			}
-		}
-	}
-}
-
 static void p8scii_put(int x, int y, int color)
 {
 	if (((unsigned)x | (unsigned)y) >= 128)
@@ -340,7 +301,7 @@ static void p8scii_put(int x, int y, int color)
 		return;
 	}
 	uint16_t addr = 0x6000 + ((uint16_t)y << 6) + ((uint16_t)x >> 1);
-	color &= 0x0F;
+	color = pico8_ram[0x5f00 + (color & 0x0F)] & 0x0F;
 	if (x & 1)
 		pico8_ram[addr] = (pico8_ram[addr] & 0x0F) | (color << 4);
 	else

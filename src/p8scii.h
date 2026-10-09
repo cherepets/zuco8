@@ -31,6 +31,5 @@ typedef struct p8scii_style
 
 void p8scii_draw_char(uint8_t char_index, int x, int y, int cell_w, int cell_h, const p8scii_style_t* style);
 void p8scii_draw_bitmap(int x, int y, const uint8_t* rows, int fg, int bg);
-void blit_char_to_screen(uint8_t char_index, int x, int y, uint8_t color, uint8_t* w, uint8_t* h);
 
 #endif // P8SCII_H
