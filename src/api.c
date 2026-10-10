@@ -3077,6 +3077,12 @@ static int pico8_inext(lua_State* L)
 
 static int pico8_ipairs(lua_State* L)
 {
+    if (lua_isnil(L, 1))
+    {
+        lua_pushcfunction(L, pico8_all_nil_iter);
+        return 1;
+    }
+
     luaL_checktype(L, 1, LUA_TTABLE);
 
     /* Push the inext iterator function */
