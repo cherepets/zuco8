@@ -304,6 +304,10 @@ static void p8scii_put(int x, int y, int color)
 	{
 		return;
 	}
+	if (x < pico8_ram[0x5f20] || y < pico8_ram[0x5f21] || x >= pico8_ram[0x5f22] || y >= pico8_ram[0x5f23])
+	{
+		return;
+	}
 	uint16_t addr = 0x6000 + ((uint16_t)y << 6) + ((uint16_t)x >> 1);
 	color = pico8_ram[0x5f00 + (color & 0x0F)] & 0x0F;
 	if (x & 1)

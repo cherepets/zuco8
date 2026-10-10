@@ -766,9 +766,50 @@ static int pico8_circfill(lua_State* L)
     return 0;
 }
 
+static void set_clip(int x0, int y0, int x1, int y1)
+{
+    pico8_ram[0x5f20] = (uint8_t)x0;
+    pico8_ram[0x5f21] = (uint8_t)y0;
+    pico8_ram[0x5f22] = (uint8_t)x1;
+    pico8_ram[0x5f23] = (uint8_t)y1;
+}
+
 static int pico8_clip(lua_State* L)
 {
-    TO_BE_DONE;
+    int prev_x0 = pico8_ram[0x5f20];
+    int prev_y0 = pico8_ram[0x5f21];
+    int prev_x1 = pico8_ram[0x5f22];
+    int prev_y1 = pico8_ram[0x5f23];
+
+    if (lua_gettop(L) == 0)
+    {
+        set_clip(0, 0, 128, 128);
+    }
+    else
+    {
+        int x0 = fix32_to_int(luaL_checknumber(L, 1));
+        int y0 = fix32_to_int(luaL_checknumber(L, 2));
+        int x1 = x0 + fix32_to_int(luaL_checknumber(L, 3));
+        int y1 = y0 + fix32_to_int(luaL_checknumber(L, 4));
+        bool clip_previous = lua_gettop(L) >= 5 && lua_toboolean(L, 5);
+        int min_x = clip_previous ? prev_x0 : 0;
+        int min_y = clip_previous ? prev_y0 : 0;
+        int max_x = clip_previous ? prev_x1 : 128;
+        int max_y = clip_previous ? prev_y1 : 128;
+
+        x0 = x0 < min_x ? min_x : x0;
+        y0 = y0 < min_y ? min_y : y0;
+        x1 = x1 > max_x ? max_x : x1;
+        y1 = y1 > max_y ? max_y : y1;
+        set_clip(x0, y0, x1 < x0 ? x0 : x1, y1 < y0 ? y0 : y1);
+    }
+
+    lua_pushinteger(L, prev_x0);
+    lua_pushinteger(L, prev_y0);
+    lua_pushinteger(L, prev_x1 - prev_x0);
+    lua_pushinteger(L, prev_y1 - prev_y0);
+
+    return 4;
 }
 
 static int pico8_cls(lua_State* L)
@@ -778,9 +819,7 @@ static int pico8_cls(lua_State* L)
 
     SDL_memset(&pico8_ram[0x6000], color_pair, 0x2000);
 
-    // Clear clip rectangle.
-
-    // tbd.
+    set_clip(0, 0, 128, 128);
 
     // Reset cursor position.
     pico8_ram[0x5f24] = 0x00; // Left margin.
@@ -1398,6 +1437,7 @@ static int pico8_print(lua_State* L)
                     home_y = 0;
                     margin = 0;
                     pico8_ram[0x5f24] = 0;
+                    set_clip(0, 0, 128, 128);
                 }
                 break;
             }
