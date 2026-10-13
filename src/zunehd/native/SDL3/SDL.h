@@ -194,6 +194,7 @@ typedef enum SDL_AppResult
 #define SDL_strstr strstr
 #define SDL_memcmp memcmp
 #define SDL_memcpy memcpy
+#define SDL_memmove memmove
 #define SDL_memset memset
 #define SDL_strtod strtod
 
