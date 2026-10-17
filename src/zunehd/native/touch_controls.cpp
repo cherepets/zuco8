@@ -90,6 +90,9 @@ static bool s_dpad_right_was_pressed;
 static bool s_in_menu = true;
 static const UiLayout* s_layout = &s_portrait_layout;
 static int s_controls_quarter_turns;
+static SDL_ZuneOrientation s_previous_orientation =
+    SDL_ZUNE_ORIENTATION_PORTRAIT;
+static bool s_players_swapped;
 
 static void DrawSprite(SDL_Renderer* renderer, SDL_Texture* texture,
     int source_x, int source_y, int source_width, int source_height,
@@ -350,12 +353,20 @@ void touch_controls_begin_frame(SDL_Renderer* renderer)
 {
     const UiLayout* layout = &s_portrait_layout;
     int quarter_turns = 0;
+    SDL_ZuneOrientation orientation;
 
     if (!renderer || !renderer->initialized)
     {
         return;
     }
-    switch (SDL_ZuneGetOrientation())
+    orientation = SDL_ZuneGetOrientation();
+    if (s_previous_orientation == SDL_ZUNE_ORIENTATION_LANDSCAPE &&
+        orientation == SDL_ZUNE_ORIENTATION_LANDSCAPE_FLIPPED)
+    {
+        s_players_swapped = !s_players_swapped;
+    }
+    s_previous_orientation = orientation;
+    switch (orientation)
     {
         case SDL_ZUNE_ORIENTATION_LANDSCAPE:
             layout = &s_landscape_layout;
@@ -482,10 +493,18 @@ void touch_controls_render(SDL_Renderer* renderer)
     unsigned int player_1_mask = 0;
     int index;
     bool menu_clicked;
+    const ControlLayout* player_0_controls = &s_layout->player_0;
+    const ControlLayout* player_1_controls = &s_layout->player_1;
 
     if (!s_buttons_texture || !s_dpad_texture)
     {
         return;
+    }
+
+    if (s_layout->has_player_1_controls && s_players_swapped)
+    {
+        player_0_controls = &s_layout->player_1;
+        player_1_controls = &s_layout->player_0;
     }
 
     SDL_GetRenderOutputSize(renderer, &drawable_w, &drawable_h);
@@ -500,7 +519,7 @@ void touch_controls_render(SDL_Renderer* renderer)
             }
             float x = fingers[index]->x * drawable_w;
             float y = fingers[index]->y * drawable_h;
-            unsigned int mask = ButtonMaskAt(&s_layout->player_0, x, y);
+            unsigned int mask = ButtonMaskAt(player_0_controls, x, y);
 
             if (mask != 0)
             {
@@ -508,7 +527,7 @@ void touch_controls_render(SDL_Renderer* renderer)
             }
             else if (s_layout->has_player_1_controls)
             {
-                player_1_mask |= ButtonMaskAt(&s_layout->player_1, x, y);
+                player_1_mask |= ButtonMaskAt(player_1_controls, x, y);
             }
         }
     }
@@ -544,10 +563,10 @@ void touch_controls_render(SDL_Renderer* renderer)
 
     renderer_gles2_set_rotation(renderer, 0, 0.0f, 0.0f);
 
-    DrawControls(renderer, &s_layout->player_0, player_0_mask, 0);
+    DrawControls(renderer, player_0_controls, player_0_mask, 0);
     if (s_layout->has_player_1_controls)
     {
-        DrawControls(renderer, &s_layout->player_1, player_1_mask,
+        DrawControls(renderer, player_1_controls, player_1_mask,
             BUTTON_CELL_SIZE * 2);
     }
     SDL_RenderPresent(renderer);
