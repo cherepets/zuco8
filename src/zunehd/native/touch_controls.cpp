@@ -62,10 +62,10 @@ static const UiLayout s_landscape_layout =
 {
     // Game
     8, 112,
-    { 172, 378, 95, 25, 35, 88, 378, 4, 403, 70 },
-    { 172, 7, 95, 25, 35, 88, 32, 4, 7, 70 },
+    { 0, 370, 110, 29, 41, 110, 370, 191, 399, 81 },
+    { 162, 0, 110, 29, 41, 81, 29, 0, 0, 81 },
     true,
-    7,
+    0,
     0
 };
 
@@ -73,11 +73,11 @@ static const UiLayout s_landscape_flipped_layout =
 {
     // Game
     8, 112,
-    { 24, 7, 95, 25, 35, 12, 378, 96, 403, 70 },
+    { 24, 0, 110, 29, 41, 24, 370, 117, 399, 81 },
     { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
     false,
-    7,
-    7
+    0,
+    0
 };
 
 static SDL_Texture* s_buttons_texture;
@@ -332,7 +332,7 @@ bool touch_controls_initialize(SDL_Renderer* renderer)
     ApplyLayout(&s_portrait_layout);
 
     s_white_texture = CreateWhitePixelTexture(renderer);
-    if (!LoadPngTexture(renderer, "buttons.png", BUTTON_CELL_SIZE * 2,
+    if (!LoadPngTexture(renderer, "buttons.png", BUTTON_CELL_SIZE * 4,
         BUTTON_CELL_SIZE * 2, &s_buttons_texture) ||
         !LoadPngTexture(renderer, "dpad.png", DPAD_CELL_SIZE * 5,
         DPAD_CELL_SIZE, &s_dpad_texture))
@@ -428,7 +428,7 @@ static void DrawCartCoverArt(SDL_Renderer* renderer)
 }
 
 static void DrawControls(SDL_Renderer* renderer, const ControlLayout* controls,
-    unsigned int mask)
+    unsigned int mask, int button_atlas_x)
 {
     DrawControlSprite(renderer, s_dpad_texture, 0, 0, DPAD_CELL_SIZE,
         DPAD_CELL_SIZE, controls->dpad_x, controls->dpad_y,
@@ -462,13 +462,14 @@ static void DrawControls(SDL_Renderer* renderer, const ControlLayout* controls,
             controls->dpad_draw_size);
     }
     DrawControlSprite(renderer, s_buttons_texture,
-        (mask & 16) ? BUTTON_CELL_SIZE : 0, 0, BUTTON_CELL_SIZE,
-        BUTTON_CELL_SIZE, controls->o_x, controls->o_y,
+        button_atlas_x + ((mask & 16) ? BUTTON_CELL_SIZE : 0), 0,
+        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, controls->o_x, controls->o_y,
         controls->button_draw_size, controls->button_draw_size);
     DrawControlSprite(renderer, s_buttons_texture,
-        (mask & 32) ? BUTTON_CELL_SIZE : 0, BUTTON_CELL_SIZE,
-        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, controls->x_x, controls->x_y,
-        controls->button_draw_size, controls->button_draw_size);
+        button_atlas_x + ((mask & 32) ? BUTTON_CELL_SIZE : 0),
+        BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, BUTTON_CELL_SIZE, controls->x_x,
+        controls->x_y, controls->button_draw_size,
+        controls->button_draw_size);
 }
 
 void touch_controls_render(SDL_Renderer* renderer)
@@ -543,10 +544,11 @@ void touch_controls_render(SDL_Renderer* renderer)
 
     renderer_gles2_set_rotation(renderer, 0, 0.0f, 0.0f);
 
-    DrawControls(renderer, &s_layout->player_0, player_0_mask);
+    DrawControls(renderer, &s_layout->player_0, player_0_mask, 0);
     if (s_layout->has_player_1_controls)
     {
-        DrawControls(renderer, &s_layout->player_1, player_1_mask);
+        DrawControls(renderer, &s_layout->player_1, player_1_mask,
+            BUTTON_CELL_SIZE * 2);
     }
     SDL_RenderPresent(renderer);
 }
