@@ -99,6 +99,7 @@ if (NGAGESDK)
 else()
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/z8lua)
   target_link_libraries(open8 PRIVATE z8lua)
+  target_sources(open8 PRIVATE src/eris/eris.c src/eris/eris_perms.c)
 endif()
 
 if (NINTENDO_3DS)

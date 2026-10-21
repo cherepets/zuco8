@@ -319,6 +319,13 @@
 				<File RelativePath="..\..\z8lua\lvm.c" />
 				<File RelativePath="..\..\z8lua\lzio.c" />
 			</Filter>
+			<Filter
+				Name="eris"
+				Filter="c"
+				>
+				<File RelativePath="..\..\eris\eris.c" />
+				<File RelativePath="..\..\eris\eris_perms.c" />
+			</Filter>
 			<File
 				RelativePath=".\fragment.fs"
 				>

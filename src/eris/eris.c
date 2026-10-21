@@ -39,21 +39,24 @@ typedef int bool;
 #define LUA_CORE
 
 /* Public Lua headers. */
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
+#include "../z8lua/lua.h"
+#include "../z8lua/lauxlib.h"
+#include "../z8lua/lualib.h"
 
 /* Internal Lua headers. */
-#include "ldebug.h"
-#include "ldo.h"
-#include "lfunc.h"
-#include "lobject.h"
-#include "lstate.h"
-#include "lstring.h"
-#include "lzio.h"
+#include "../z8lua/ldebug.h"
+#include "../z8lua/ldo.h"
+#include "../z8lua/lfunc.h"
+#include "../z8lua/lobject.h"
+#include "../z8lua/lstate.h"
+#include "../z8lua/lstring.h"
+#include "../z8lua/lzio.h"
 
 /* Eris header. */
 #include "eris.h"
+
+#define eris_pushint(L, n) lua_pushlightuserdata((L), (void*)(intptr_t)(n))
+#define eris_toint(L, i) ((int)(intptr_t)lua_touserdata((L), (i)))
 
 /*
 ** {===========================================================================
@@ -157,16 +160,12 @@ static const lua_Unsigned kMaxComplexity = 10000;
  * permanents table to fully support yielded coroutines. */
 extern void eris_permbaselib(lua_State *L, int forUnpersist);
 extern void eris_permcorolib(lua_State *L, int forUnpersist);
-extern void eris_permloadlib(lua_State *L, int forUnpersist);
-extern void eris_permiolib(lua_State *L, int forUnpersist);
 extern void eris_permstrlib(lua_State *L, int forUnpersist);
 
 /* Utility macro for populating the perms table with internal C functions. */
 #define populateperms(L, forUnpersist) {\
   eris_permbaselib(L, forUnpersist);\
   eris_permcorolib(L, forUnpersist);\
-  eris_permloadlib(L, forUnpersist);\
-  eris_permiolib(L, forUnpersist);\
   eris_permstrlib(L, forUnpersist);\
 }
 
@@ -373,7 +372,7 @@ pushpath(Info *info, const char* fmt, ...) {     /* perms reftbl var path ... */
     va_start(argp, fmt);
     lua_pushvfstring(info->L, fmt, argp);    /* perms reftbl var path ... str */
     va_end(argp);
-    lua_rawseti(info->L, PATHIDX, luaL_len(info->L, PATHIDX) + 1);
+    lua_rawseti(info->L, PATHIDX, (int)lua_rawlen(info->L, PATHIDX) + 1);
   }                                              /* perms reftbl var path ... */
 }  
 
@@ -385,7 +384,7 @@ poppath(Info *info) {                            /* perms reftbl var path ... */
   }
   eris_checkstack(info->L, 1);
   lua_pushnil(info->L);                      /* perms reftbl var path ... nil */
-  lua_rawseti(info->L, PATHIDX, luaL_len(info->L, PATHIDX));
+  lua_rawseti(info->L, PATHIDX, (int)lua_rawlen(info->L, PATHIDX));
 }                                                /* perms reftbl var path ... */
 
 /* Concatenates all current path segments into one string, pushes it and
@@ -1581,7 +1580,7 @@ u_closure(Info *info) {                                                /* ... */
         lua_pop(info->L, 1);                                   /* ... lcl tbl */
         lua_pushvalue(info->L, -2);                        /* ... lcl tbl lcl */
         lua_rawseti(info->L, -2, UVTOCL);                      /* ... lcl tbl */
-        lua_pushinteger(info->L, nup);                     /* ... lcl tbl nup */
+        eris_pushint(info->L, nup);                     /* ... lcl tbl nup */
         lua_rawseti(info->L, -2, UVTONU);                      /* ... lcl tbl */
         *uv = eris_newupval(info->L);
       }
@@ -1592,8 +1591,8 @@ u_closure(Info *info) {                                                /* ... */
         ocl = eris_clLvalue(info->L->top - 1);
         lua_pop(info->L, 1);                                   /* ... lcl tbl */
         lua_rawgeti(info->L, -1, UVTONU);                 /* ... lcl tbl onup */
-        eris_assert(lua_type(info->L, -1) == LUA_TNUMBER);
-        onup = lua_tointeger(info->L, -1);
+        eris_assert(lua_type(info->L, -1) == LUA_TLIGHTUSERDATA);
+        onup = eris_toint(info->L, -1);
         lua_pop(info->L, 1);                                   /* ... lcl tbl */
         *uv = ocl->upvals[onup - 1];
       }
@@ -1611,11 +1610,11 @@ u_closure(Info *info) {                                                /* ... */
         eris_setobj(info->L, &(*uv)->u.value, info->L->top - 1);
         lua_pop(info->L, 1);                                   /* ... lcl tbl */
 
-        lua_pushinteger(info->L, nup);                     /* ... lcl tbl nup */
+        eris_pushint(info->L, nup);                     /* ... lcl tbl nup */
         lua_pushvalue(info->L, -3);                    /* ... lcl tbl nup lcl */
-        if (luaL_len(info->L, -3) >= UVTVAL) {
+        if ((int)lua_rawlen(info->L, -3) >= UVTVAL) {
           /* Got a valid sequence (value already set), insert at the end. */
-          i = luaL_len(info->L, -3);
+          i = (int)lua_rawlen(info->L, -3);
           lua_rawseti(info->L, -3, i + 1);                 /* ... lcl tbl nup */
           lua_rawseti(info->L, -2, i + 2);                     /* ... lcl tbl */
         }
@@ -2028,14 +2027,14 @@ u_thread(Info *info) {                                                 /* ... */
        * references to the already existing one, which we added to the table in
        * u_closure. */
       lua_pop(info->L, 1);                                  /* ... thread tbl */
-      for (i = UVTREF, n = luaL_len(info->L, -1); i <= n; i += 2) {
+      for (i = UVTREF, n = (int)lua_rawlen(info->L, -1); i <= n; i += 2) {
         LClosure *cl;
         int nup;
         lua_rawgeti(info->L, -1, i);                    /* ... thread tbl lcl */
         cl = eris_clLvalue(info->L->top - 1);
         lua_pop(info->L, 1);                                /* ... thread tbl */
         lua_rawgeti(info->L, -1, i + 1);                /* ... thread tbl nup */
-        nup = lua_tointeger(info->L, -1);
+        nup = eris_toint(info->L, -1);
         lua_pop(info->L, 1);                                /* ... thread tbl */
         /* Open the upvalue by pointing to the stack and register in GC. */
         cl->upvals[nup - 1] = nuv;
@@ -2130,7 +2129,7 @@ persist_keyed(Info *info, int type) {          /* perms reftbl ... obj refkey */
   /* If the object has already been written, write a reference to it. */
   lua_rawget(info->L, REFTIDX);           /* perms reftbl ... obj refkey ref? */
   if (!lua_isnil(info->L, -1)) {           /* perms reftbl ... obj refkey ref */
-    const int reference = lua_tointeger(info->L, -1);
+    const int reference = eris_toint(info->L, -1);
     WRITE_VALUE(reference + ERIS_REFERENCE_OFFSET, int);
     lua_pop(info->L, 2);                              /* perms reftbl ... obj */
     return;
@@ -2142,7 +2141,7 @@ persist_keyed(Info *info, int type) {          /* perms reftbl ... obj refkey */
 
   /* Put the value in the reference table. This creates an entry pointing from
    * the object (or its key) to the id the object is referenced by. */
-  lua_pushinteger(info->L, ++(info->refcount));
+  eris_pushint(info->L, ++(info->refcount));
                                     /* perms reftbl ... obj refkey refkey ref */
   lua_rawset(info->L, REFTIDX);                /* perms reftbl ... obj refkey */
 
