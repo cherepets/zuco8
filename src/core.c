@@ -22,7 +22,9 @@
 #include "memory.h"
 
 #ifdef _WIN32_WCE
+#include "zunehd/native/quick_resume.h"
 #include "zunehd/native/cartdata.h"
+#include "zunehd/native/resume_store.h"
 #endif
 
 #define STBI_ONLY_PNG
@@ -60,6 +62,10 @@ static int selection;
 static bool has_update;
 static bool has_update60;
 static bool has_draw;
+
+#ifdef _WIN32_WCE
+static bool can_save_resume;
+#endif
 
 static SDL_Texture* overlay;
 
@@ -191,6 +197,9 @@ static bool init_vm(SDL_Renderer* renderer)
     lua_setpico8memory(vm, pico8_ram);
     luaL_openlibs(vm);
     init_api(vm);
+#ifdef _WIN32_WCE
+    quick_resume_register_permanents(vm);
+#endif
 
     if (luaL_dostring(vm, "log('Lua VM initialized successfully')"))
     {
@@ -203,9 +212,62 @@ static bool init_vm(SDL_Renderer* renderer)
     return true;
 }
 
+#ifdef _WIN32_WCE
+static uint32_t selected_cart_crc(void)
+{
+    static int crc_selection = -1;
+    static uint32_t crc;
+
+    if (crc_selection != selection)
+    {
+        crc = quick_resume_crc32(0, get_cart()->cart_data, sizeof(get_cart()->cart_data));
+        crc_selection = selection;
+    }
+    return crc;
+}
+
+static void save_quick_resume(void)
+{
+    quick_resume_info_t info;
+    uint32_t cart_crc;
+    int top;
+    bool saved;
+
+    if (!vm || !can_save_resume || state != STATE_EMULATOR)
+    {
+        return;
+    }
+
+    cart_crc = selected_cart_crc();
+    SDL_memset(&info, 0, sizeof(info));
+    strncpy(info.cartdata_id, cartdata_selected_id(), QUICK_RESUME_CARTDATA_ID_MAX);
+
+    top = lua_gettop(vm);
+    if (pico8_flip_coroutine)
+    {
+        lua_pushthread(pico8_flip_coroutine);
+        lua_xmove(pico8_flip_coroutine, vm, 1);
+    }
+    else
+    {
+        lua_pushnil(vm);
+    }
+    saved = resume_store_begin(cart_crc) &&
+        quick_resume_save(vm, -1, &info, resume_store_write, NULL) &&
+        resume_store_commit();
+    lua_settop(vm, top);
+    if (!saved)
+    {
+        resume_store_discard(cart_crc);
+    }
+}
+#endif
+
 static void destroy_vm(void)
 {
 #ifdef _WIN32_WCE
+    save_quick_resume();
+    can_save_resume = false;
     cartdata_flush();
 #endif
     if (vm)
@@ -698,6 +760,9 @@ static bool run_script(SDL_Renderer* renderer, const char* file_name)
 static bool run_cartridge(SDL_Renderer* renderer)
 {
     destroy_vm();
+#ifdef _WIN32_WCE
+    resume_store_discard(selected_cart_crc());
+#endif
     if (!init_vm(renderer))
     {
         return false;
@@ -799,8 +864,104 @@ static bool run_cartridge(SDL_Renderer* renderer)
         return false;
     }
 
+#ifdef _WIN32_WCE
+    can_save_resume = true;
+#endif
     return true;
 }
+
+#ifdef _WIN32_WCE
+static bool restore_quick_resume(SDL_Renderer* renderer, uint32_t cart_crc)
+{
+    quick_resume_info_t info;
+    size_t size = 0;
+    uint8_t* data = resume_store_load(cart_crc, &size);
+    bool restored = false;
+
+    if (!data)
+    {
+        return false;
+    }
+
+    destroy_vm();
+    if (init_vm(renderer))
+    {
+        reset_memory();
+        cartdata_reset();
+        has_update = false;
+        has_update60 = false;
+        has_draw = false;
+        restored = quick_resume_load(vm, data, size, &info);
+    }
+    resume_store_free(data);
+    resume_store_discard(cart_crc);
+    if (!restored)
+    {
+        return false;
+    }
+
+    pico8_flip_coroutine = lua_tothread(vm, -1);
+    if (pico8_flip_coroutine)
+    {
+        if (lua_status(pico8_flip_coroutine) != LUA_YIELD)
+        {
+            pico8_flip_coroutine = NULL;
+            return false;
+        }
+    }
+    else
+    {
+        lua_pop(vm, 1);
+        has_update = is_function_present(vm, "_update");
+        has_update60 = is_function_present(vm, "_update60");
+        has_draw = is_function_present(vm, "_draw");
+    }
+
+    if (info.cartdata_id[0])
+    {
+        cartdata_select(info.cartdata_id, pico8_ram + 0x5e00);
+    }
+    state = STATE_EMULATOR;
+    can_save_resume = true;
+    return true;
+}
+
+bool cart_resume_available(void)
+{
+    return state == STATE_MENU && !get_cart()->is_corrupt &&
+        resume_store_exists(selected_cart_crc());
+}
+
+bool cart_resume(SDL_Renderer* renderer)
+{
+    uint32_t cart_crc;
+
+    if (state != STATE_MENU || get_cart()->is_corrupt)
+    {
+        return false;
+    }
+    cart_crc = selected_cart_crc();
+    if (restore_quick_resume(renderer, cart_crc))
+    {
+        return true;
+    }
+    resume_store_discard(cart_crc);
+    return run_cartridge(renderer);
+}
+
+void cart_resume_discard(void)
+{
+    if (state == STATE_MENU && !get_cart()->is_corrupt)
+    {
+        resume_store_discard(selected_cart_crc());
+    }
+}
+
+void cart_resume_checkpoint(void)
+{
+    save_quick_resume();
+}
+#endif
 
 bool toggle_menu(SDL_Renderer* renderer)
 {

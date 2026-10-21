@@ -24,6 +24,7 @@
 
 #ifdef _WIN32_WCE
 #include "zunehd/native/cartdata.h"
+#include "zunehd/native/quick_resume.h"
 #endif
 
 #define TO_BE_DONE \
@@ -3675,3 +3676,21 @@ void update_time(void)
 {
     ticks_since_start += (pico8_frame_ms < 20) ? 1 : 2;
 }
+
+#ifdef _WIN32_WCE
+void api_get_runtime_state(api_runtime_state_t* runtime)
+{
+    runtime->seed[0] = seed_lo;
+    runtime->seed[1] = seed_hi;
+    runtime->ticks = ticks_since_start;
+    SDL_memcpy(runtime->held_frames, btn_held_frames, sizeof(btn_held_frames));
+}
+
+void api_set_runtime_state(const api_runtime_state_t* runtime)
+{
+    seed_lo = runtime->seed[0];
+    seed_hi = runtime->seed[1];
+    ticks_since_start = runtime->ticks;
+    SDL_memcpy(btn_held_frames, runtime->held_frames, sizeof(btn_held_frames));
+}
+#endif

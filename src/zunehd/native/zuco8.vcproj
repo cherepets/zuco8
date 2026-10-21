@@ -262,6 +262,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\resume_store.h"
+				>
+			</File>
+			<File
+				RelativePath=".\quick_resume.h"
+				>
+			</File>
+			<File
 				RelativePath=".\renderer_gles2.h"
 				>
 			</File>
@@ -389,6 +397,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\resume_store.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\renderer_gles2.cpp"
 				>
 			</File>
@@ -446,6 +458,16 @@
 			</File>
 			<File
 				RelativePath="..\..\core.c"
+				>
+				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+					<Tool Name="VCCLCompilerTool" CompileAs="2" />
+				</FileConfiguration>
+				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+					<Tool Name="VCCLCompilerTool" CompileAs="2" />
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\quick_resume.c"
 				>
 				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
 					<Tool Name="VCCLCompilerTool" CompileAs="2" />

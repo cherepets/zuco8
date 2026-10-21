@@ -1,4 +1,5 @@
 #include "cartdata.h"
+#include "resume_store.h"
 
 #include <windows.h>
 #include <string.h>
@@ -10,6 +11,7 @@ static const wchar_t kCartDataDirectory[] = L"\\xnaa\\zuco8\\cartdata";
 
 static uint8_t s_loaded_snapshot[kCartDataBytes];
 static wchar_t s_data_path[MAX_PATH];
+static char s_selected_id[kCartDataIdMax + 1];
 static uint8_t* s_selected_ram;
 
 static bool EnsureCartDataDirectory(void)
@@ -133,21 +135,31 @@ static void SaveSelectedWindow(void)
     {
         return;
     }
-    if (WriteSnapshot(s_selected_ram))
+    while (!WriteSnapshot(s_selected_ram))
     {
-        memcpy(s_loaded_snapshot, s_selected_ram, kCartDataBytes);
+        if (!resume_store_evict_oldest())
+        {
+            return;
+        }
     }
+    memcpy(s_loaded_snapshot, s_selected_ram, kCartDataBytes);
 }
 
 extern "C" void cartdata_reset(void)
 {
     s_selected_ram = 0;
+    s_selected_id[0] = '\0';
     memset(s_loaded_snapshot, 0, kCartDataBytes);
 }
 
 extern "C" void cartdata_flush(void)
 {
     SaveSelectedWindow();
+}
+
+extern "C" const char* cartdata_selected_id(void)
+{
+    return s_selected_ram ? s_selected_id : "";
 }
 
 extern "C" bool cartdata_select(const char* id, uint8_t* ram)
@@ -171,6 +183,7 @@ extern "C" bool cartdata_select(const char* id, uint8_t* ram)
     }
 
     s_selected_ram = ram;
+    strcpy(s_selected_id, id);
 
     file = CreateFile(s_data_path, GENERIC_READ, FILE_SHARE_READ, 0,
         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);

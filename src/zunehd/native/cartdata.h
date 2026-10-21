@@ -14,6 +14,8 @@ void cartdata_flush(void);
 
 void cartdata_reset(void);
 
+const char* cartdata_selected_id(void);
+
 #ifdef __cplusplus
 }
 #endif

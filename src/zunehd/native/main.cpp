@@ -4,6 +4,8 @@
 #include "touch_controls.h"
 #include <zdkgl.h>
 
+void cart_resume_checkpoint(void);
+
 int main(int argc, char* argv[])
 {
     void* appstate = 0;
@@ -23,6 +25,7 @@ int main(int argc, char* argv[])
         {
             if (!was_suspended)
             {
+                cart_resume_checkpoint();
                 cartdata_flush();
                 was_suspended = true;
             }

@@ -8,6 +8,9 @@
 bool toggle_menu(SDL_Renderer* renderer);
 bool cart_browser_select_next(SDL_Renderer* renderer);
 bool cart_browser_select_prev(SDL_Renderer* renderer);
+bool cart_resume_available(void);
+bool cart_resume(SDL_Renderer* renderer);
+void cart_resume_discard(void);
 
 static const int DPAD_CELL_SIZE = 19;
 static const int BUTTON_CELL_SIZE = 14;
@@ -83,11 +86,13 @@ static const UiLayout s_landscape_flipped_layout =
 static SDL_Texture* s_buttons_texture;
 static SDL_Texture* s_dpad_texture;
 static SDL_Texture* s_white_texture;
+static SDL_Texture* s_resume_overlay_texture;
 static bool s_o_was_pressed;
 static bool s_x_was_pressed;
 static bool s_dpad_left_was_pressed;
 static bool s_dpad_right_was_pressed;
 static bool s_in_menu = true;
+static bool s_game_input_ready;
 static const UiLayout* s_layout = &s_portrait_layout;
 static int s_controls_quarter_turns;
 static SDL_ZuneOrientation s_previous_orientation =
@@ -335,6 +340,11 @@ bool touch_controls_initialize(SDL_Renderer* renderer)
     ApplyLayout(&s_portrait_layout);
 
     s_white_texture = CreateWhitePixelTexture(renderer);
+    if (!LoadPngTexture(renderer, "resume.png", ART_SOURCE_SIZE,
+        ART_SOURCE_SIZE, &s_resume_overlay_texture))
+    {
+        s_resume_overlay_texture = 0;
+    }
     if (!LoadPngTexture(renderer, "buttons.png", BUTTON_CELL_SIZE * 4,
         BUTTON_CELL_SIZE * 2, &s_buttons_texture) ||
         !LoadPngTexture(renderer, "dpad.png", DPAD_CELL_SIZE * 5,
@@ -396,6 +406,8 @@ static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask,
 
     if (s_in_menu)
     {
+        bool resume_available = cart_resume_available();
+
         if (left_pressed && !s_dpad_left_was_pressed)
         {
             cart_browser_select_prev(renderer);
@@ -404,8 +416,16 @@ static void UpdateMenuInteractions(SDL_Renderer* renderer, unsigned int mask,
         {
             cart_browser_select_next(renderer);
         }
-
-        if (menu_clicked || (o_pressed && !s_o_was_pressed) ||
+        else if (resume_available && (menu_clicked || (o_pressed && !s_o_was_pressed)))
+        {
+            cart_resume(renderer);
+            s_in_menu = false;
+        }
+        else if (resume_available && x_pressed && !s_x_was_pressed)
+        {
+            cart_resume_discard();
+        }
+        else if (menu_clicked || (o_pressed && !s_o_was_pressed) ||
             (x_pressed && !s_x_was_pressed))
         {
             if (!get_cart()->is_corrupt)
@@ -436,6 +456,12 @@ static void DrawCartCoverArt(SDL_Renderer* renderer)
     DrawSprite(renderer, get_cart()->image, ART_SOURCE_X, ART_SOURCE_Y,
         ART_SOURCE_SIZE, ART_SOURCE_SIZE, s_layout->game_x, s_layout->game_y,
         GAME_SIZE, GAME_SIZE);
+    if (s_resume_overlay_texture && cart_resume_available())
+    {
+        DrawSprite(renderer, s_resume_overlay_texture, 0, 0, ART_SOURCE_SIZE,
+            ART_SOURCE_SIZE, s_layout->game_x, s_layout->game_y, GAME_SIZE,
+            GAME_SIZE);
+    }
 }
 
 static void DrawControls(SDL_Renderer* renderer, const ControlLayout* controls,
@@ -532,14 +558,27 @@ void touch_controls_render(SDL_Renderer* renderer)
         }
     }
     touch_button_state_player_0 = (uint8_t)(player_0_mask & 0x3F);
-    touch_button_state_player_1 = s_in_menu ? 0 :
-        (uint8_t)(player_1_mask & 0x3F);
+    touch_button_state_player_1 = (uint8_t)(player_1_mask & 0x3F);
 
     menu_clicked = UpdateGameScreenTouch(fingers, num_fingers, drawable_w,
         drawable_h);
 
     UpdateMenuInteractions(renderer, player_0_mask | player_1_mask,
         menu_clicked);
+
+    if (s_in_menu)
+    {
+        s_game_input_ready = false;
+    }
+    else if (!s_game_input_ready && (player_0_mask | player_1_mask) == 0)
+    {
+        s_game_input_ready = true;
+    }
+    if (!s_game_input_ready)
+    {
+        touch_button_state_player_0 = 0;
+        touch_button_state_player_1 = 0;
+    }
 
     DrawCartCoverArt(renderer);
 
@@ -580,4 +619,6 @@ void touch_controls_shutdown(void)
     s_buttons_texture = 0;
     SDL_DestroyTexture(s_white_texture);
     s_white_texture = 0;
+    SDL_DestroyTexture(s_resume_overlay_texture);
+    s_resume_overlay_texture = 0;
 }
