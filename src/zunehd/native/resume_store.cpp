@@ -1,4 +1,5 @@
 #include "resume_store.h"
+#include "compression.h"
 
 #include <windows.h>
 #include <stdlib.h>
@@ -71,6 +72,20 @@ static bool JoinPath(wchar_t* path, const wchar_t* directory, const wchar_t* nam
 static bool IsDotEntry(const wchar_t* name)
 {
     return name[0] == L'.' && (name[1] == 0 || (name[1] == L'.' && name[2] == 0));
+}
+
+static uint32_t Get32(const uint8_t* p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+        ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void Put32(uint8_t* p, uint32_t value)
+{
+    p[0] = (uint8_t)value;
+    p[1] = (uint8_t)(value >> 8);
+    p[2] = (uint8_t)(value >> 16);
+    p[3] = (uint8_t)(value >> 24);
 }
 
 static bool ReadExact(HANDLE file, void* data, DWORD size)
@@ -208,6 +223,8 @@ static uint8_t* ReadWholeFile(uint32_t cart_crc, size_t* size)
     wchar_t path[MAX_PATH];
     HANDLE file;
     DWORD file_size;
+    uint32_t raw_size;
+    uint8_t* compressed;
     uint8_t* data;
 
     BuildPath(path, cart_crc, L".qr");
@@ -223,15 +240,24 @@ static uint8_t* ReadWholeFile(uint32_t cart_crc, size_t* size)
         CloseHandle(file);
         return 0;
     }
-    data = (uint8_t*)malloc(file_size);
-    if (!data || !ReadExact(file, data, file_size))
+    compressed = (uint8_t*)malloc(file_size);
+    if (!compressed || !ReadExact(file, compressed, file_size) || file_size <= 4)
     {
-        free(data);
+        free(compressed);
         CloseHandle(file);
         return 0;
     }
     CloseHandle(file);
-    *size = file_size;
+    raw_size = Get32(compressed);
+    data = raw_size > 0 && raw_size <= kMaxResumeBytes ? (uint8_t*)malloc(raw_size) : 0;
+    if (!data || !compression_decompress(compressed + 4, file_size - 4, data, raw_size))
+    {
+        free(data);
+        free(compressed);
+        return 0;
+    }
+    free(compressed);
+    *size = raw_size;
     return data;
 }
 
@@ -306,19 +332,34 @@ extern "C" bool resume_store_write(void* userdata, const void* data, size_t size
 
 extern "C" bool resume_store_commit(void)
 {
+    uint8_t* compressed = 0;
+    size_t compressed_size = 0;
     bool ok = false;
 
     if (s_writing && s_write_ok && s_size > 0)
     {
-        if (EnsureResumeDirectory() && MakeRoom((DWORD)s_size))
+        compressed = (uint8_t*)malloc(4 + compression_bound(s_size));
+        if (compressed)
         {
-            ok = WriteResumeFile(s_cart_crc, s_data, (DWORD)s_size);
+            compressed_size = compression_compress(s_data, s_size, compressed + 4,
+                compression_bound(s_size));
+        }
+    }
+    if (compressed_size > 0)
+    {
+        const DWORD file_size = (DWORD)(4 + compressed_size);
+
+        Put32(compressed, (uint32_t)s_size);
+        if (EnsureResumeDirectory() && MakeRoom(file_size))
+        {
+            ok = WriteResumeFile(s_cart_crc, compressed, file_size);
             while (!ok && DeleteOldestResume())
             {
-                ok = WriteResumeFile(s_cart_crc, s_data, (DWORD)s_size);
+                ok = WriteResumeFile(s_cart_crc, compressed, file_size);
             }
         }
     }
+    free(compressed);
     ReleaseBuffer();
     s_exists_known = false;
     return ok;

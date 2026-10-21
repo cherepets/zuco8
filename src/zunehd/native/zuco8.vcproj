@@ -266,6 +266,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\compression.h"
+				>
+			</File>
+			<File
 				RelativePath=".\quick_resume.h"
 				>
 			</File>
@@ -398,6 +402,10 @@
 			</File>
 			<File
 				RelativePath=".\resume_store.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\compression.cpp"
 				>
 			</File>
 			<File
