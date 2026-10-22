@@ -338,172 +338,182 @@
 				<File RelativePath="..\..\eris\eris.c" />
 				<File RelativePath="..\..\eris\eris_perms.c" />
 			</Filter>
-			<File
-				RelativePath=".\fragment.fs"
+			<Filter
+				Name="open8"
+				UniqueIdentifier="{3C1F6E2A-8B4D-4E7A-9F21-6D5B0A7C8E14}"
 				>
-			</File>
-			<File
-				RelativePath=".\main.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\png_texture.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\touch_controls.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\..\app.c"
-				>
-				<FileConfiguration
-					Name="Debug|OpenZDK (ARMV4I)"
+				<File
+					RelativePath="..\..\api.c"
 					>
-					<Tool
-						Name="VCCLCompilerTool"
-						CompileAs="2"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|OpenZDK (ARMV4I)"
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\app.c"
 					>
-					<Tool
-						Name="VCCLCompilerTool"
-						CompileAs="2"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\main.c"
-				>
-				<FileConfiguration
-					Name="Debug|OpenZDK (ARMV4I)"
+					<FileConfiguration
+						Name="Debug|OpenZDK (ARMV4I)"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|OpenZDK (ARMV4I)"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\auxiliary.c"
 					>
-					<Tool
-						Name="VCCLCompilerTool"
-						CompileAs="2"
-						ObjectFile="$(IntDir)\open8_main.obj"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|OpenZDK (ARMV4I)"
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\core.c"
 					>
-					<Tool
-						Name="VCCLCompilerTool"
-						CompileAs="2"
-						ObjectFile="$(IntDir)\open8_main.obj"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath=".\cartdata.cpp"
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\lexaloffle\p8_compress.c"
+					>
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\lexaloffle\pxa_compress_snippets.c"
+					>
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\main.c"
+					>
+					<FileConfiguration
+						Name="Debug|OpenZDK (ARMV4I)"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+							ObjectFile="$(IntDir)\open8_main.obj"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|OpenZDK (ARMV4I)"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							CompileAs="2"
+							ObjectFile="$(IntDir)\open8_main.obj"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\memory.c"
+					>
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\..\p8scii.c"
+					>
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+			</Filter>
+			<Filter
+				Name="zune"
+				UniqueIdentifier="{9E4A2B71-5C3D-4F80-A6B9-2D7E1F0C4B58}"
 				>
-			</File>
-			<File
-				RelativePath=".\resume_store.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\compression.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\renderer_gles2.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\sdl_compat.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\z8lua_ce_compat.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\vertex.vs"
-				>
-			</File>
-			<File
-				RelativePath="..\..\api.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\auxiliary.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\memory.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\p8scii.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\core.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath=".\quick_resume.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\lexaloffle\p8_compress.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\lexaloffle\pxa_compress_snippets.c"
-				>
-				<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-				<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
-					<Tool Name="VCCLCompilerTool" CompileAs="2" />
-				</FileConfiguration>
-			</File>
+				<File
+					RelativePath=".\cartdata.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\compression.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\fragment.fs"
+					>
+				</File>
+				<File
+					RelativePath=".\main.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\png_texture.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\quick_resume.c"
+					>
+					<FileConfiguration Name="Debug|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+					<FileConfiguration Name="Release|OpenZDK (ARMV4I)">
+						<Tool Name="VCCLCompilerTool" CompileAs="2" />
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\renderer_gles2.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\resume_store.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\sdl_compat.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\touch_controls.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\vertex.vs"
+					>
+				</File>
+				<File
+					RelativePath=".\z8lua_ce_compat.cpp"
+					>
+				</File>
+			</Filter>
 		</Filter>
 	</Files>
 	<Globals>
