@@ -1,4 +1,4 @@
-﻿namespace installer.ViewModels;
+﻿namespace Zuco8.Installer.ViewModels;
 
 public class MainWindowViewModel : ViewModelBase
 {

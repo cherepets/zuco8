@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Zuco8.Installer.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="Zuco8.Installer.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/logo.ico"
+        Title="zuco8 Zuco8.Installer"
+		ExtendClientAreaToDecorationsHint="True">
+
+	<Window.Resources>
+		<ControlTheme x:Key="EllipseButton" TargetType="Button">
+			<Setter Property="Background">
+				<LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+					<GradientStop Color="#f10da2" Offset="0.0"/>
+					<GradientStop Color="#4ECDC4" Offset="1.0"/>
+				</LinearGradientBrush>
+			</Setter>
+			<Setter Property="Foreground" Value="Yellow"/>
+			<Setter Property="Padding" Value="8"/>
+			<Style Selector="^:pointerover">
+				<Setter Property="Background" Value="#ed2d60"/>
+				<Setter Property="Foreground" Value="White"/>
+			</Style>
+			<Style Selector="^:pressed">
+				<Setter Property="Background" Value="#e95215"/>
+				<Setter Property="Foreground" Value="White"/>
+			</Style>
+		</ControlTheme>
+	</Window.Resources>
+	
+	<Border Padding="24">
+		<StackPanel>
+			<TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+			<Button>Test</Button>
+			<ToggleSwitch />
+			<CheckBox>Not checked by default</CheckBox>
+			<RadioButton GroupName="First Group" Content="First Option"/>
+			<Slider />
+			<Button>
+				<Button.Background>
+					<LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+						<GradientStop Color="#FF6B6B" Offset="0.0"/>
+						<GradientStop Color="#4ECDC4" Offset="1.0"/>
+					</LinearGradientBrush>
+				</Button.Background>
+				<Button.Content>DEPLOY</Button.Content>
+			</Button>
+		</StackPanel>
+	</Border>
+
+</Window>

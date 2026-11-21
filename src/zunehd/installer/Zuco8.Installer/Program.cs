@@ -2,7 +2,7 @@
 using Avalonia.ReactiveUI;
 using System;
 
-namespace installer;
+namespace Zuco8.Installer;
 
 sealed class Program
 {

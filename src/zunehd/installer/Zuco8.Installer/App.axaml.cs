@@ -1,10 +1,10 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using installer.ViewModels;
-using installer.Views;
+using Zuco8.Installer.ViewModels;
+using Zuco8.Installer.Views;
 
-namespace installer;
+namespace Zuco8.Installer;
 
 public partial class App : Application
 {

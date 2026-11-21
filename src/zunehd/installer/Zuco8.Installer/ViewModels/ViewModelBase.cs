@@ -1,6 +1,6 @@
 ﻿using ReactiveUI;
 
-namespace installer.ViewModels;
+namespace Zuco8.Installer.ViewModels;
 
 public class ViewModelBase : ReactiveObject
 {

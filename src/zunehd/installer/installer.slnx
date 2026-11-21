@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Zuco8.DeployMan/Zuco8.DeployMan.csproj" />
+  <Project Path="Zuco8.DriverMan/Zuco8.DriverMan.csproj" />
+  <Project Path="Zuco8.Installer/Zuco8.Installer.csproj" />
+</Solution>
