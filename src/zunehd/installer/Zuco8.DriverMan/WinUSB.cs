@@ -1,5 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace Zuco8.DriverMan
 {
@@ -7,18 +6,27 @@ namespace Zuco8.DriverMan
     {
         Task<bool> IsInstalledAsync();
         Task<DriverInstallationResult> TryInstallAsync();
+        Task<DriverInstallationResult> TryUninstallAsync();
     }
 
-    public class WinUSB : IWinUsb
+    public class WinUsb : IWinUsb
     {
-        public Task<bool> IsInstalledAsync()
+        public async Task<bool> IsInstalledAsync()
         {
-            throw new NotImplementedException();
+            await Task.Delay(1000);
+            return false;
         }
 
-        public Task<DriverInstallationResult> TryInstallAsync()
+        public async Task<DriverInstallationResult> TryInstallAsync()
         {
-            throw new NotImplementedException();
+            await Task.Delay(1000);
+            return DriverInstallationResult.Success;
+        }
+
+        public async Task<DriverInstallationResult> TryUninstallAsync()
+        {
+            await Task.Delay(1000);
+            return DriverInstallationResult.Success;
         }
     }
 
@@ -27,7 +35,10 @@ namespace Zuco8.DriverMan
         public bool HasSucceeded { get; }
         public string? ErrorMessage { get; }
 
-        public DriverInstallationResult(bool hasSucceeded, string? errorMessage)
+        public static DriverInstallationResult Success { get; } = new DriverInstallationResult(true, null);
+        public static DriverInstallationResult Failure(string errorMessage) => new(false, errorMessage);
+
+        private DriverInstallationResult(bool hasSucceeded, string? errorMessage)
         {
             HasSucceeded = hasSucceeded;
             ErrorMessage = errorMessage;

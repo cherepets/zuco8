@@ -5,4 +5,34 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Remove="Embedded\.mtpz-data" />
+    <None Remove="Embedded\Microsoft.Xna.Framework.dll" />
+    <None Remove="Embedded\Microsoft.Xna.Framework.Game.dll" />
+    <None Remove="Embedded\mscoree3_5.dll" />
+    <None Remove="Embedded\mscorlib.dll" />
+    <None Remove="Embedded\runtime.json" />
+    <None Remove="Embedded\runtimehost.dll" />
+    <None Remove="Embedded\system.core.dll" />
+    <None Remove="Embedded\system.dll" />
+    <None Remove="Embedded\system.sr.dll" />
+    <None Remove="Embedded\system.xml.dll" />
+    <None Remove="Embedded\system.xml.linq.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Embedded\.mtpz-data" />
+    <EmbeddedResource Include="Embedded\Microsoft.Xna.Framework.dll" />
+    <EmbeddedResource Include="Embedded\Microsoft.Xna.Framework.Game.dll" />
+    <EmbeddedResource Include="Embedded\mscoree3_5.dll" />
+    <EmbeddedResource Include="Embedded\mscorlib.dll" />
+    <EmbeddedResource Include="Embedded\runtime.json" />
+    <EmbeddedResource Include="Embedded\runtimehost.dll" />
+    <EmbeddedResource Include="Embedded\system.core.dll" />
+    <EmbeddedResource Include="Embedded\system.dll" />
+    <EmbeddedResource Include="Embedded\system.sr.dll" />
+    <EmbeddedResource Include="Embedded\system.xml.dll" />
+    <EmbeddedResource Include="Embedded\system.xml.linq.dll" />
+  </ItemGroup>
+
 </Project>

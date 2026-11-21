@@ -1,30 +1,51 @@
-﻿using System.Reflection;
+﻿using System.IO;
+using System.Reflection;
 
 namespace Zuco8.DeployMan
 {
     public interface IDeployable
     {
+        string ContainerPath { get; }
+        Stream OpenRead();
     }
 
     public class EmbeddedResource : IDeployable
     {
-        public Assembly Assembly { get; }
-        public string Name { get; }
+        public string ContainerPath { get; }
 
-        public EmbeddedResource(Assembly assembly, string name) 
+        private readonly Assembly _assembly;
+        private readonly string _resourceName;
+
+        public EmbeddedResource(string containerPath, Assembly assembly, string resourceName) 
         {
-            Assembly = assembly;
-            Name = name;
+            ContainerPath = containerPath;
+
+            _assembly = assembly;
+            _resourceName = resourceName;
+        }
+
+        public Stream OpenRead()
+        {
+            throw new System.NotImplementedException();
         }
     }
 
     public class ExternalFile : IDeployable
     {
-        public string Path { get; }
+        public string ContainerPath { get; }
 
-        public ExternalFile(string path)
+        private readonly string _filePath;
+
+        public ExternalFile(string containerPath, string filePath)
         {
-            Path = path;
+            ContainerPath = containerPath;
+
+            _filePath = filePath;
+        }
+
+        public Stream OpenRead()
+        {
+            throw new System.NotImplementedException();
         }
     }
 }
