@@ -6,7 +6,7 @@ namespace Zuco8.DriverMan
     public interface IWinUsb
     {
         Task<bool> IsInstalledAsync();
-        Task<bool> TryInstallAsync(out string? errorMessage);
+        Task<DriverInstallationResult> TryInstallAsync();
     }
 
     public class WinUSB : IWinUsb
@@ -16,9 +16,21 @@ namespace Zuco8.DriverMan
             throw new NotImplementedException();
         }
 
-        public Task<bool> TryInstallAsync(out string? errorMessage)
+        public Task<DriverInstallationResult> TryInstallAsync()
         {
             throw new NotImplementedException();
+        }
+    }
+
+    public class DriverInstallationResult
+    {
+        public bool HasSucceeded { get; }
+        public string? ErrorMessage { get; }
+
+        public DriverInstallationResult(bool hasSucceeded, string? errorMessage)
+        {
+            HasSucceeded = hasSucceeded;
+            ErrorMessage = errorMessage;
         }
     }
 }
