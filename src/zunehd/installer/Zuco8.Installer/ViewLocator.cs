@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
-using ReactiveUI;
 using System;
+using Zuco8.Installer.ViewModels;
 
 namespace Zuco8.Installer;
 
@@ -27,6 +27,6 @@ public class ViewLocator : IDataTemplate
 
     public bool Match(object? data)
     {
-        return data is ReactiveObject;
+        return data is ViewModelBase;
     }
 }
